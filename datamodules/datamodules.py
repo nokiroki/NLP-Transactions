@@ -18,7 +18,7 @@ def fit_discretizer(n_bins: int, train_sequences: pd.DataFrame) -> KBinsDiscreti
     discretizer = KBinsDiscretizer(n_bins=n_bins, encode='ordinal')
     all_amounts = list()
     for i in range(len(train_sequences)):
-        all_amounts += train_sequences.iloc[i].amount_rur
+        all_amounts += train_sequences.iloc[i]
     discretizer.fit(np.array(all_amounts).reshape(-1, 1))
     return discretizer
 
@@ -37,17 +37,17 @@ class TransactionDataModule(pl.LightningDataModule):
         self.window_size = window_size
         self.batch_size  = batch_size
 
-        discretizer = fit_discretizer(discretizer_bins, train_sequences)
+        discretizer = fit_discretizer(discretizer_bins, train_sequences[1])
 
         mcc_codes, amnts = train_sequences
         mcc_seqs =  [torch.LongTensor([mcc2id[code] for code in sequence]) for sequence in mcc_codes]
         amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(sequence).reshape(-1, 1))).view(-1) + 1 for sequence in amnts]
-        self.train_ds = T2VDataset(mcc_seqs, amnt_seqs, self.window_size)
+        self.train_ds = T2VDataset(mcc_seqs, amnt_seqs, mcc2id, self.window_size)
 
         mcc_codes, amnts = val_sequences
         mcc_seqs =  [torch.LongTensor([mcc2id[code] for code in sequence]) for sequence in mcc_codes]
         amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(sequence).reshape(-1, 1))).view(-1) + 1 for sequence in amnts]
-        self.train_ds = T2VDataset(mcc_seqs, amnt_seqs, self.window_size)
+        self.val_ds = T2VDataset(mcc_seqs, amnt_seqs, mcc2id, self.window_size)
     
 
     def train_dataloader(self):
@@ -67,7 +67,7 @@ class TransactionDataModule(pl.LightningDataModule):
             collate_fn=self._tr2vec_collate
         )
     
-
+    @staticmethod
     def _tr2vec_collate(batch: torch.Tensor) -> Tuple[
     torch.LongTensor,
     torch.Tensor,

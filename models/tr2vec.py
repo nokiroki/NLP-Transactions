@@ -29,6 +29,8 @@ class Transaction2VecJoint(pl.LightningModule):
 
         self.mcc_input_embeddings   = nn.Embedding(mcc_vocab_size + 1, mcc_emb_size, padding_idx=0)
         self.amnt_input_embeddings  = nn.Embedding(amnt_bins + 1, amnt_emb_size, padding_idx=0)
+        self.hidden_linear          = nn.Linear(mcc_emb_size + amnt_emb_size, emb_size, bias=False)
+        self.mcc_output             = nn.Linear(emb_size, mcc_vocab_size, bias=False)
         self.amnt_output            = nn.Linear(
             emb_size,
             1 if amnt_loss == 'ordinal' else amnt_bins,
@@ -46,6 +48,7 @@ class Transaction2VecJoint(pl.LightningModule):
             self.amnt_criterion = nn.CrossEntropyLoss()
 
         self.lr = lr
+        self.amnt_loss = amnt_loss
 
 
     def forward(
@@ -67,20 +70,20 @@ class Transaction2VecJoint(pl.LightningModule):
         return {'optimizer': optimizer}
     
 
-    def training_step(self, batch: torch.Tensor) -> STEP_OUTPUT:
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> STEP_OUTPUT:
         ctx_mccs, ctx_amnts, center_mccs, center_amnts, ctx_lengths = batch
         mcc_logits, amnt_logits = self(ctx_mccs, ctx_amnts, ctx_lengths)
-        if self.hparams['amnt_loss'] == 'ordinal':
+        if self.amnt_loss == 'ordinal':
             center_amnts = center_amnts.view(-1, 1)
         loss = self.mcc_criterion(mcc_logits, center_mccs - 1) + self.amnt_criterion(amnt_logits, center_amnts - 1)
         self.log('train_loss', loss)
         return loss
     
 
-    def validation_step(self, batch: torch.Tensor) -> Optional[STEP_OUTPUT]:
+    def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         ctx_mccs, ctx_amnts, center_mccs, center_amnts, ctx_lengths = batch
         mcc_logits, amnt_logits = self(ctx_mccs, ctx_amnts, ctx_lengths)
-        if self.hparams['amnt_loss'] == 'ordinal':
+        if self.amnt_loss == 'ordinal':
             center_amnts = center_amnts.view(-1, 1)
         loss = self.mcc_criterion(mcc_logits, center_mccs - 1) + self.amnt_criterion(amnt_logits, center_amnts - 1)
         self.log('val_loss', loss, prog_bar=True)
