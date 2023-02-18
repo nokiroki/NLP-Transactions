@@ -31,11 +31,13 @@ class TransactionDataModule(pl.LightningDataModule):
         train_sequences: pd.DataFrame,
         val_sequences: pd.DataFrame,
         mcc2id: Dict[int, int],
-        discretizer_bins: int
+        discretizer_bins: int,
+        num_workers: int = 1
     ):
         super().__init__()
         self.window_size = window_size
         self.batch_size  = batch_size
+        self.num_workers = num_workers
 
         discretizer = fit_discretizer(discretizer_bins, train_sequences[1])
 
@@ -54,6 +56,7 @@ class TransactionDataModule(pl.LightningDataModule):
         return DataLoader(
             self.train_ds,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
             shuffle=True,
             drop_last=True,
             collate_fn=self._tr2vec_collate
@@ -64,6 +67,7 @@ class TransactionDataModule(pl.LightningDataModule):
         return DataLoader(
             self.val_ds,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
             collate_fn=self._tr2vec_collate
         )
     
@@ -93,10 +97,12 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         val_sequences: pd.DataFrame,
         test_sequences: pd.DataFrame,
         mcc2id: Dict[int, int],
-        discretizer_bins: int
+        discretizer_bins: int,
+        num_workers: int = 1
     ) -> None:
         super().__init__()
         self.batch_size = batch_size
+        self.num_workers = num_workers
 
         discretizer = fit_discretizer(discretizer_bins, train_sequences)
         
@@ -126,6 +132,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         return DataLoader(
             self.train_ds,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
             shuffle=True,
             drop_last=True,
             collate_fn=self._rnn_collate
@@ -136,6 +143,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         return DataLoader(
             self.val_ds,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
             collate_fn=self._rnn_collate
         )
     
@@ -144,6 +152,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         return DataLoader(
             self.test_ds,
             batch_size=self.batch_size,
+            num_workers=self.num_workers,
             collate_fn=self._rnn_collate
         )
 

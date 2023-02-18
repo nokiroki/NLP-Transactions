@@ -4,9 +4,12 @@ import os
 import numpy as np
 import pandas as pd
 
+import torch
+
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
+from pytorch_lightning import loggers as pl_loggers
 
 from utils import split_data
 from models import Transaction2VecJoint
@@ -51,6 +54,7 @@ if __name__ == '__main__':
     lr              = config.getfloat('Tr2Vec', 'lr')
     batch_size      = config.getint('Tr2Vec', 'batch_size')
     epochs          = config.getint('Tr2Vec', 'epochs')
+    num_workers     = config.getint('All_models', 'num_workers')
 
     # Датамодуль
     datamodule = TransactionDataModule(
@@ -59,7 +63,8 @@ if __name__ == '__main__':
         (train_sequences.small_group, train_sequences.amount_rur),
         (val_sequences.small_group, val_sequences.amount_rur),
         mcc2id,
-        amnt_bins
+        amnt_bins,
+        num_workers
     )
 
     # Модель tr2vec
@@ -86,10 +91,13 @@ if __name__ == '__main__':
         mode='min'
     )
 
+    tb_logger = pl_loggers.TensorBoardLogger(os.path.join(logging_dir, 'tb_logs'), 'ts2vec')
+
     trainer = Trainer(
-        accumulate_grad_batches=5,
-        gpus=1,
-        default_root_dir=logging_dir,
+        accumulate_grad_batches=2,
+        accelerator='gpu',
+        devices=1,
+        logger=tb_logger,
         deterministic=True,
         callbacks=[early_stop_callback, checkpoint],
         max_epochs=epochs,
@@ -97,3 +105,27 @@ if __name__ == '__main__':
     )
     # Обучение
     trainer.fit(model, datamodule)
+
+    # Сохранение параметров
+    model = Transaction2VecJoint.load_from_checkpoint(checkpoint.best_model_path)
+    if not os.path.exists(os.path.join(logging_dir, 'best_model_params')):
+        os.mkdir(os.path.join(logging_dir, 'best_model_params'))
+    torch.save(
+        {
+            'mccs': model.mcc_input_embeddings.weight.data,
+            'amnts': model.amnt_input_embeddings.weight.data,
+            'hidden': model.hidden_linear.weight.data,
+            'mcc2id': mcc2id
+        },
+        os.path.join(
+            logging_dir,
+            'best_model_params',
+            ''.join((
+                f'tr2vec_mcc={mcc_emb_size}',
+                f'_amnt={amnt_emb_size}',
+                f'_emb={emb_size}',
+                f'_window={window_size}',
+                f'_loss={amnt_loss}.pth'
+            ))
+        )
+    )
