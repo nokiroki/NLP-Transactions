@@ -28,13 +28,13 @@ class Transaction2VecJoint(pl.LightningModule):
         assert amnt_loss in ('ordinal', 'ce')
 
         self.save_hyperparameters({
-            'amnt_loss': amnt_loss,
-            'mcc_vocab_size': mcc_vocab_size,
-            'mcc_emb_size': mcc_emb_size,
-            'amnt_bins': amnt_bins,
-            'amnt_emb_size': amnt_emb_size,
-            'emb_size': emb_size,
-            'lr': lr
+            'amnt_loss'         : amnt_loss,
+            'mcc_vocab_size'    : mcc_vocab_size,
+            'mcc_emb_size'      : mcc_emb_size,
+            'amnt_bins'         : amnt_bins,
+            'amnt_emb_size'     : amnt_emb_size,
+            'emb_size'          : emb_size,
+            'lr'                : lr
         })
 
         self.mcc_input_embeddings   = nn.Embedding(mcc_vocab_size + 1, mcc_emb_size, padding_idx=0)

@@ -5,7 +5,7 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 
-from torchmetrics.functional import auroc
+from sklearn.metrics import roc_auc_score
 
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import STEP_OUTPUT, EPOCH_OUTPUT
@@ -38,6 +38,21 @@ class TransactionGRU(pl.LightningModule):
         if emb_type == 'concat':
             assert mcc_emb_size + amnt_emb_size == emb_size
 
+        self.save_hyperparameters({
+            'emb_type'          : emb_type,
+            'mcc_vocab_size'    : mcc_vocab_size,
+            'mcc_emb_size'      : mcc_emb_size,
+            'amnt_bins'         : amnt_bins,
+            'amnt_emb_size'     : amnt_emb_size,
+            'emb_size'          : emb_size,
+            'hidden_size'       : hidden_size,
+            'num_layers'        : num_layers,
+            'dropout'           : dropout,
+            'lr'                : lr,
+            'is_perm'           : is_perm,
+            'is_pe'             : is_pe
+        })
+
         self.is_perm = is_perm
         self.lr = lr
 
@@ -62,7 +77,9 @@ class TransactionGRU(pl.LightningModule):
 
         self.predictor = nn.Linear(2 * hidden_size, 1)
 
-    
+    def auroc(self, probs: torch.Tensor, labels: torch.Tensor) -> float:
+        return roc_auc_score(labels.detach().cpu().numpy(), probs.detach().cpu().numpy())
+
     def set_embeddings(
         self,
         mcc_weights: torch.Tensor,
@@ -118,7 +135,7 @@ class TransactionGRU(pl.LightningModule):
         return {'optimizer': optimizer}
     
 
-    def training_step(self, batch: torch.Tensor) -> STEP_OUTPUT:
+    def training_step(self, batch: torch.Tensor, batch_idx: int) -> STEP_OUTPUT:
         mcc_seqs, amnt_seqs, labels, lengths = batch
         logits = self(mcc_seqs, amnt_seqs, lengths)
         loss = F.binary_cross_entropy_with_logits(logits, labels.float())
@@ -129,10 +146,10 @@ class TransactionGRU(pl.LightningModule):
     def training_epoch_end(self, outputs: torch.Tensor) -> Optional[STEP_OUTPUT]:
         probs  = torch.cat([o['probs']  for o in outputs])
         labels = torch.cat([o['labels'] for o in outputs])
-        self.log('train_auroc', auroc(probs, labels), prog_bar=True)
+        self.log('train_auroc', self.auroc(probs, labels), prog_bar=True)
     
 
-    def validation_step(self, batch: torch.Tensor) -> Optional[STEP_OUTPUT]:
+    def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths = batch
         logits = self(mcc_seqs, amnt_seqs, lengths)
         probs = torch.sigmoid(logits)
@@ -142,10 +159,10 @@ class TransactionGRU(pl.LightningModule):
     def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         probs, labels = zip(*outputs)
         probs, labels = torch.cat(probs), torch.cat(labels)
-        self.log('val_auroc', auroc(probs, labels), prog_bar=True)
+        self.log('val_auroc', self.auroc(probs, labels), prog_bar=True)
 
 
-    def test_step(self, batch: torch.Tensor) -> Optional[STEP_OUTPUT]:
+    def test_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths = batch
         logits = self(mcc_seqs, amnt_seqs, lengths)
         probs = torch.sigmoid(logits)
@@ -155,4 +172,4 @@ class TransactionGRU(pl.LightningModule):
     def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         probs, labels = zip(*outputs)
         probs, labels = torch.cat(probs), torch.cat(labels)
-        self.log('test_auroc', auroc(probs, labels))
+        self.log('test_auroc', self.auroc(probs, labels))

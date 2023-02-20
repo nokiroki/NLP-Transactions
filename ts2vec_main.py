@@ -11,19 +11,14 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning import Trainer
 from pytorch_lightning import loggers as pl_loggers
 
-from utils import split_data
+from utils.data_utils import split_data
+from utils.config_utils import get_config_with_dirs
 from models import Transaction2VecJoint
 from datamodules import TransactionDataModule
 
 
 if __name__ == '__main__':
-    config = ConfigParser()
-    config.read('config.ini', encoding='utf-8')
-
-    data_dir = config.get('Data', 'data_dir')
-    logging_dir = config.get('Logging', 'logging_dir')
-    if not os.path.exists(logging_dir):
-        os.mkdir(logging_dir)
+    config, (data_dir, logging_dir) = get_config_with_dirs('config.ini')
 
     # Подгружаем данные росбанка
     transactions = pd.read_csv(os.path.join(data_dir, 'rosbank\\train.csv'))

@@ -104,7 +104,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
 
-        discretizer = fit_discretizer(discretizer_bins, train_sequences)
+        discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
         
         mcc_seqs    = train_sequences.small_group
         amnt_seqs   = train_sequences.amount_rur
@@ -157,7 +157,8 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         )
 
 
-    def _rnn_collate(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    @staticmethod
+    def _rnn_collate(batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mcc_seqs, amnt_seqs, labels = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
