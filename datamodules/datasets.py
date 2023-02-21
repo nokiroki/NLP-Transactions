@@ -81,8 +81,8 @@ class TransactionLabelDataset(Dataset):
         return  self.mcc_seqs[index], \
                 self.amnt_seqs[index], \
                 self.labels[index], \
-                self.avg_amt_seqs[index], \
-                self.top_mcc_seqs[index]
+                self.avg_amt_seqs[index] if self.avg_amt_seqs else None, \
+                self.top_mcc_seqs[index] if self.top_mcc_seqs else None
     
     def __len__(self) -> int:
         return len(self.labels)

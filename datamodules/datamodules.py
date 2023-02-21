@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -108,6 +108,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.val_sequences = val_sequences
         self.test_sequences = test_sequences
         self.mcc2id = mcc2id
+        self.is_global_features = is_global_features
 
         self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
         
@@ -150,7 +151,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             shuffle=True,
             drop_last=True,
-            collate_fn=self._rnn_collate
+            collate_fn=self._rnn_collate_with_gc if self.is_global_features else self._rnn_collate
         )
     
 
@@ -159,7 +160,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
             self.val_ds,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=self._rnn_collate
+            collate_fn=self._rnn_collate_with_gc if self.is_global_features else self._rnn_collate
         )
     
 
@@ -173,7 +174,9 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
 
     @staticmethod
-    def _rnn_collate(batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _rnn_collate_with_gc(batch: torch.Tensor) -> Tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
         mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
@@ -182,6 +185,17 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         top_mcc = pad_sequence(top_mcc, batch_first=True)
         labels = torch.LongTensor(labels)
         return mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc
+    
+    @staticmethod
+    def _rnn_collate(batch: torch.Tensor) -> Tuple[
+        torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+    ]:
+        mcc_seqs, amnt_seqs, labels, _, _ = zip(*batch)
+        lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
+        mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
+        amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
+        labels = torch.LongTensor(labels)
+        return mcc_seqs, amnt_seqs, labels, lengths, None, None
     
 
     def _get_agg_func(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:

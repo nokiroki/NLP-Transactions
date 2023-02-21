@@ -25,16 +25,16 @@ if __name__ == '__main__':
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
     transactions = transactions.rename(columns={'cl_id':'client_id', 'MCC':'small_group', 'amount':'amount_rur'})
-    transactions = global_context(transactions)
+    # transactions = global_context(transactions)
 
     sequences = transactions.groupby('client_id').agg({
         'small_group': lambda x: x.tolist(),
         'amount_rur': lambda x: x.tolist(),
         'target_flag': lambda x: x.tolist()[0],
-        'average_amt': lambda x: x.tolist(),
-        'top_mcc_1': lambda x: x.tolist(),
-        'top_mcc_2': lambda x: x.tolist(),
-        'top_mcc_3': lambda x: x.tolist()
+        # 'average_amt': lambda x: x.tolist(),
+        # 'top_mcc_1': lambda x: x.tolist(),
+        # 'top_mcc_2': lambda x: x.tolist(),
+        # 'top_mcc_3': lambda x: x.tolist()
     })
     train_sequences, val_sequences, test_sequences = split_data(sequences, use_train_ratio=1.)
     mcc2id = dict(zip(
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     num_workers     = config.getint('All_models', 'num_workers')
     
     # Цикл обучения для оценик uncertainty
-    for _ in range(5):
+    for _ in range(2):
         model = TransactionGRU(
             emb_type,
             mcc_vocab_size,
@@ -99,6 +99,7 @@ if __name__ == '__main__':
             test_sequences,
             mcc2id,
             amnt_bins,
+            is_global_features=False,
             num_workers=num_workers
         )
 
@@ -114,7 +115,7 @@ if __name__ == '__main__':
         
         callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
-        tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs'), 'rnn')
+        tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs\\rnn'), 'data_without_global_context')
 
         trainer = Trainer(
             accelerator='gpu',
