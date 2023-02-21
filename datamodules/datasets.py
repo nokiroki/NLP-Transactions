@@ -63,13 +63,26 @@ class T2VDataset(Dataset):
 
 class TransactionLabelDataset(Dataset):
 
-    def __init__(self, mcc_seqs: pd.DataFrame, amnt_seqs: pd.DataFrame, labels: pd.DataFrame) -> None:
-        self.mcc_seqs   = mcc_seqs
-        self.amnt_seqs  = amnt_seqs
-        self.labels     = labels
+    def __init__(
+        self,
+        mcc_seqs: pd.DataFrame,
+        amnt_seqs: pd.DataFrame,
+        labels: pd.DataFrame,
+        avg_amt_seqs: Optional[pd.DataFrame] = None,
+        top_mcc_seqs: Optional[pd.DataFrame] = None
+    ) -> None:
+        self.mcc_seqs       = mcc_seqs
+        self.amnt_seqs      = amnt_seqs
+        self.labels         = labels
+        self.avg_amt_seqs   = avg_amt_seqs
+        self.top_mcc_seqs   = top_mcc_seqs
 
     def __getitem__(self, index: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        return self.mcc_seqs[index], self.amnt_seqs[index], self.labels[index]
+        return  self.mcc_seqs[index], \
+                self.amnt_seqs[index], \
+                self.labels[index], \
+                self.avg_amt_seqs[index], \
+                self.top_mcc_seqs[index]
     
     def __len__(self) -> int:
         return len(self.labels)

@@ -35,8 +35,8 @@ class TransactionGRU(pl.LightningModule):
         super().__init__(*args, **kwargs)
         assert emb_type in ('concat', 'tr2vec')
 
-        if emb_type == 'concat':
-            assert mcc_emb_size + amnt_emb_size == emb_size
+        # if emb_type == 'concat':
+        #     assert mcc_emb_size + amnt_emb_size == emb_size
 
         self.save_hyperparameters({
             'emb_type'          : emb_type,
@@ -93,10 +93,22 @@ class TransactionGRU(pl.LightningModule):
                 self.emb_linear.weight.data = emb_linear_weights
     
 
-    def forward(self, mcc_seqs: torch.Tensor, amnt_seqs: torch.Tensor, lengths: torch.Tensor) -> Any:
+    def forward(
+        self,
+        mcc_seqs: torch.Tensor,
+        amnt_seqs: torch.Tensor,
+        lengths: torch.Tensor,
+        avg_amnt: Optional[torch.Tensor],
+        top_mcc: Optional[torch.Tensor]
+    ) -> Any:
         mcc_embs = self.mcc_embeddings(mcc_seqs)
         amnt_embs = self.amnt_embeddings(amnt_seqs)
         embs = torch.cat([mcc_embs, amnt_embs], -1)
+        if avg_amnt is not None and top_mcc is not None:
+            avg_amnt_embs = self.amnt_embeddings(avg_amnt)
+            mcc_top_embs = self.mcc_embeddings(top_mcc)
+            mcc_top_embs = torch.reshape(mcc_top_embs, (mcc_top_embs.shape[0], mcc_top_embs.shape[1], -1))
+            embs = torch.cat([embs, avg_amnt_embs, mcc_top_embs], -1)
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
         
@@ -136,8 +148,8 @@ class TransactionGRU(pl.LightningModule):
     
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> STEP_OUTPUT:
-        mcc_seqs, amnt_seqs, labels, lengths = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         loss = F.binary_cross_entropy_with_logits(logits, labels.float())
         self.log('train_loss', loss)
         return {'loss': loss, 'probs': torch.sigmoid(logits), 'labels': labels}
@@ -150,8 +162,8 @@ class TransactionGRU(pl.LightningModule):
     
 
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
-        mcc_seqs, amnt_seqs, labels, lengths = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         probs = torch.sigmoid(logits)
         return probs, labels
 
@@ -163,8 +175,8 @@ class TransactionGRU(pl.LightningModule):
 
 
     def test_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
-        mcc_seqs, amnt_seqs, labels, lengths = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         probs = torch.sigmoid(logits)
         return probs, labels
     

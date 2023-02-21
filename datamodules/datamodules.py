@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 
 import numpy as np
 import pandas as pd
@@ -98,34 +98,49 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         test_sequences: pd.DataFrame,
         mcc2id: Dict[int, int],
         discretizer_bins: int,
+        is_global_features: bool = True,
         num_workers: int = 1
     ) -> None:
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.train_sequences = train_sequences
+        self.val_sequences = val_sequences
+        self.test_sequences = test_sequences
+        self.mcc2id = mcc2id
 
-        discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
+        self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
         
-        mcc_seqs    = train_sequences.small_group
-        amnt_seqs   = train_sequences.amount_rur
-        labels      = train_sequences.target_flag.tolist()
-        mcc_seqs  = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs]
-        amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs]
-        self.train_ds = TransactionLabelDataset(mcc_seqs, amnt_seqs, labels)
+        mcc_seqs_train      = train_sequences.small_group
+        amnt_seqs_train     = train_sequences.amount_rur
+        labels_train        = train_sequences.target_flag.tolist()
+        mcc_seqs_train      = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_train]
+        amnt_seqs_train     = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_train]
 
-        mcc_seqs    = val_sequences.small_group
-        amnt_seqs   = val_sequences.amount_rur
-        labels      = val_sequences.target_flag.tolist()
-        mcc_seqs  = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs]
-        amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs]
-        self.val_ds = TransactionLabelDataset(mcc_seqs, amnt_seqs, labels)
+        mcc_seqs_val        = val_sequences.small_group
+        amnt_seqs_val       = val_sequences.amount_rur
+        labels_val          = val_sequences.target_flag.tolist()
+        mcc_seqs_val        = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_val]
+        amnt_seqs_val       = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_val]
 
-        mcc_seqs    = test_sequences.small_group
-        amnt_seqs   = test_sequences.amount_rur
-        labels      = test_sequences.target_flag.tolist()
-        mcc_seqs  = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs]
-        amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs]
-        self.test_ds = TransactionLabelDataset(mcc_seqs, amnt_seqs, labels)
+        mcc_seqs_test       = test_sequences.small_group
+        amnt_seqs_test      = test_sequences.amount_rur
+        labels_test         = test_sequences.target_flag.tolist()
+        mcc_seqs_test       = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_test]
+        amnt_seqs_test      = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_test]
+
+        if is_global_features:
+            (avg_amnt_train, top_mcc_train), \
+            (avg_amnt_val, top_mcc_val), \
+            (avg_amnt_test, top_mcc_test) = self._get_agg_func()
+
+            self.train_ds   = TransactionLabelDataset(mcc_seqs_train, amnt_seqs_train, labels_train, avg_amnt_train, top_mcc_train)
+            self.val_ds     = TransactionLabelDataset(mcc_seqs_val, amnt_seqs_val, labels_val, avg_amnt_val, top_mcc_val)
+            self.test_ds    = TransactionLabelDataset(mcc_seqs_test, amnt_seqs_test, labels_test, avg_amnt_test, top_mcc_test)
+        else:
+            self.train_ds   = TransactionLabelDataset(mcc_seqs_train, amnt_seqs_train, labels_train)
+            self.val_ds     = TransactionLabelDataset(mcc_seqs_val, amnt_seqs_val, labels_val)
+            self.test_ds    = TransactionLabelDataset(mcc_seqs_test, amnt_seqs_test, labels_test)
 
     
     def train_dataloader(self) -> DataLoader:
@@ -159,9 +174,31 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
     @staticmethod
     def _rnn_collate(batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        mcc_seqs, amnt_seqs, labels = zip(*batch)
+        mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
         amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
+        avg_amnt = pad_sequence(avg_amnt, batch_first=True)
+        top_mcc = pad_sequence(top_mcc, batch_first=True)
         labels = torch.LongTensor(labels)
-        return mcc_seqs, amnt_seqs, labels, lengths
+        return mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc
+    
+
+    def _get_agg_func(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
+        train_val_test_agg_features = list()
+        for sequences in (self.train_sequences, self.val_sequences, self.test_sequences):
+            avg_amt = sequences.average_amt
+            top_mcc_1 = sequences.top_mcc_1
+            top_mcc_2 = sequences.top_mcc_2
+            top_mcc_3 = sequences.top_mcc_3
+
+            avg_amt = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in avg_amt]
+            top_mcc_seqs = [torch.stack((
+                    torch.LongTensor([self.mcc2id[code] for code in seq_1]),
+                    torch.LongTensor([self.mcc2id[code] for code in seq_2]),
+                    torch.LongTensor([self.mcc2id[code] for code in seq_3])
+                ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
+            ]
+
+            train_val_test_agg_features.append((avg_amt, top_mcc_seqs))
+        return train_val_test_agg_features
