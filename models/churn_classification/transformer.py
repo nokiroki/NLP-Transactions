@@ -95,7 +95,7 @@ class Transformer(BaseModel):
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
         
-        if self.is_perm:
+        if self.hparams['is_perm']:
             perm = torch.randperm(embs.size(1))
             embs = embs[:, perm, :]
 
@@ -105,3 +105,7 @@ class Transformer(BaseModel):
 
         logits = self.predictor(features).squeeze()
         return logits
+    
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams['lr'])
+        return {'optimizer': optimizer}
