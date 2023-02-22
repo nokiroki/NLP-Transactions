@@ -20,22 +20,45 @@ from utils.config_utils import get_config_with_dirs
 if __name__ == '__main__':
     config, (data_dir, logging_dir) = get_config_with_dirs('config.ini')
     
+    # Чтение данных из конфига
+    batch_size          = config.getint('RNN', 'batch_size')
+    lr                  = config.getfloat('RNN', 'lr')
+    epochs              = config.getint('RNN', 'epochs')
+    emb_type            = config.get('RNN', 'emb_type')
+    mcc_vocab_size      = config.getint('RNN', 'mcc_vocab_size')
+    mcc_embed_size      = config.getint('RNN', 'mcc_emb_size')
+    amnt_bins           = config.getint('RNN', 'amnt_bins')
+    amnt_emb_size       = config.getint('RNN', 'amnt_emb_size')
+    emb_size            = config.getint('RNN', 'emb_size')
+    layers              = config.getint('RNN', 'layers')
+    hidden_dim          = config.getint('RNN', 'hidden_dim')
+    dropout             = config.getfloat('RNN', 'dropout')
+    permutation         = config.getboolean('RNN', 'permutation')
+    pe                  = config.getboolean('RNN', 'pe')
+    use_global_features = config.getboolean('RNN', 'use_global_features')
+    num_workers         = config.getint('All_models', 'num_workers')
+    
     # Чтения файла росбанка
     transactions = pd.read_csv(os.path.join(data_dir, 'rosbank\\train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
     transactions = transactions.rename(columns={'cl_id':'client_id', 'MCC':'small_group', 'amount':'amount_rur'})
-    # transactions = global_context(transactions)
 
     sequences = transactions.groupby('client_id').agg({
         'small_group': lambda x: x.tolist(),
         'amount_rur': lambda x: x.tolist(),
         'target_flag': lambda x: x.tolist()[0],
-        # 'average_amt': lambda x: x.tolist(),
-        # 'top_mcc_1': lambda x: x.tolist(),
-        # 'top_mcc_2': lambda x: x.tolist(),
-        # 'top_mcc_3': lambda x: x.tolist()
     })
+    if use_global_features:
+        transactions = global_context(transactions)
+        sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
+            'average_amt': lambda x: x.tolist(),
+            'top_mcc_1': lambda x: x.tolist(),
+            'top_mcc_2': lambda x: x.tolist(),
+            'top_mcc_3': lambda x: x.tolist()
+        })), axis=1)
+
+
     train_sequences, val_sequences, test_sequences = split_data(sequences, use_train_ratio=1.)
     mcc2id = dict(zip(
         transactions.small_group.unique(), 
@@ -56,26 +79,8 @@ if __name__ == '__main__':
             '_loss=ordinal.pth'
         ))
     ))
-
-    # Чтение данных из конфига
-    batch_size          = config.getint('RNN', 'batch_size')
-    lr                  = config.getfloat('RNN', 'lr')
-    epochs              = config.getint('RNN', 'epochs')
-    emb_type            = config.get('RNN', 'emb_type')
-    mcc_vocab_size      = config.getint('RNN', 'mcc_vocab_size')
-    mcc_embed_size      = config.getint('RNN', 'mcc_emb_size')
-    amnt_bins           = config.getint('RNN', 'amnt_bins')
-    amnt_emb_size       = config.getint('RNN', 'amnt_emb_size')
-    emb_size            = config.getint('RNN', 'emb_size')
-    layers              = config.getint('RNN', 'layers')
-    hidden_dim          = config.getint('RNN', 'hidden_dim')
-    dropout             = config.getfloat('RNN', 'dropout')
-    permutation         = config.getboolean('RNN', 'permutation')
-    pe                  = config.getboolean('RNN', 'pe')
-    use_global_features = config.getboolean('RNN', 'use_global_features')
-    num_workers         = config.getint('All_models', 'num_workers')
     
-    # Цикл обучения для оценик uncertainty
+    # Цикл обучения для оценки uncertainty
     for _ in range(5):
         model = TransactionGRU(
             emb_type,
