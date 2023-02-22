@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models import TransactionGRU
+from models.churn_classification import TransactionGRU
 from models.callbacks import FreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from utils.data_utils import split_data, global_context
@@ -121,7 +121,7 @@ if __name__ == '__main__':
         
         callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
-        tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs\\rnn'), 'data_without_global_context')
+        tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs\\rnn'), 'data_with_global_context_test')
 
         trainer = Trainer(
             accelerator='gpu',
