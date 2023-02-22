@@ -58,24 +58,25 @@ if __name__ == '__main__':
     ))
 
     # Чтение данных из конфига
-    batch_size      = config.getint('RNN', 'batch_size')
-    lr              = config.getfloat('RNN', 'lr')
-    epochs          = config.getint('RNN', 'epochs')
-    emb_type        = config.get('RNN', 'emb_type')
-    mcc_vocab_size  = config.getint('RNN', 'mcc_vocab_size')
-    mcc_embed_size  = config.getint('RNN', 'mcc_emb_size')
-    amnt_bins       = config.getint('RNN', 'amnt_bins')
-    amnt_emb_size   = config.getint('RNN', 'amnt_emb_size')
-    emb_size        = config.getint('RNN', 'emb_size')
-    layers          = config.getint('RNN', 'layers')
-    hidden_dim      = config.getint('RNN', 'hidden_dim')
-    dropout         = config.getfloat('RNN', 'dropout')
-    permutation     = config.getboolean('RNN', 'permutation')
-    pe              = config.getboolean('RNN', 'pe')
-    num_workers     = config.getint('All_models', 'num_workers')
+    batch_size          = config.getint('RNN', 'batch_size')
+    lr                  = config.getfloat('RNN', 'lr')
+    epochs              = config.getint('RNN', 'epochs')
+    emb_type            = config.get('RNN', 'emb_type')
+    mcc_vocab_size      = config.getint('RNN', 'mcc_vocab_size')
+    mcc_embed_size      = config.getint('RNN', 'mcc_emb_size')
+    amnt_bins           = config.getint('RNN', 'amnt_bins')
+    amnt_emb_size       = config.getint('RNN', 'amnt_emb_size')
+    emb_size            = config.getint('RNN', 'emb_size')
+    layers              = config.getint('RNN', 'layers')
+    hidden_dim          = config.getint('RNN', 'hidden_dim')
+    dropout             = config.getfloat('RNN', 'dropout')
+    permutation         = config.getboolean('RNN', 'permutation')
+    pe                  = config.getboolean('RNN', 'pe')
+    use_global_features = config.getboolean('RNN', 'use_global_features')
+    num_workers         = config.getint('All_models', 'num_workers')
     
     # Цикл обучения для оценик uncertainty
-    for _ in range(2):
+    for _ in range(5):
         model = TransactionGRU(
             emb_type,
             mcc_vocab_size,
@@ -99,7 +100,7 @@ if __name__ == '__main__':
             test_sequences,
             mcc2id,
             amnt_bins,
-            is_global_features=False,
+            is_global_features=use_global_features,
             num_workers=num_workers
         )
 
