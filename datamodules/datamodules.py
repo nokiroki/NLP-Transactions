@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Iterable, Any
 
 import numpy as np
 import pandas as pd
@@ -123,13 +123,13 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.test_ds    = self.create_dataset(test_sequences)
 
 
-    def create_dataset(self, sequences):
+    def create_dataset(self, sequences: pd.DataFrame) -> TransactionLabelDataset:
         mcc_seqs      = sequences.small_group
         amnt_seqs     = sequences.amount_rur
         period_seqs   = sequences[self.period]
         labels        = sequences.target_flag.tolist()
 
-        mcc_seqs_processed, amnt_seqs_processed = self.process_sequences(self, mcc_seqs, amnt_seqs, period_seqs)
+        mcc_seqs_processed, amnt_seqs_processed = self.process_sequences(mcc_seqs, amnt_seqs, period_seqs)
 
         if self.is_global_features:
             avg_amnt, top_mcc = self.get_agg_func(sequences)
@@ -138,7 +138,12 @@ class TransactionRNNDataModule(pl.LightningDataModule):
             return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels)
 
 
-    def process_sequences(self, mcc_seqs, amnt_seqs, period_seqs):
+    def process_sequences(
+        self,
+        mcc_seqs: Iterable[int],
+        amnt_seqs: Iterable[int],
+        period_seqs: Iterable[Any]
+    ):
         mcc_seqs_processed, amnt_seqs_processed = [], []
         for mcc_seq, amnt_seq, period_seq in zip(mcc_seqs, amnt_seqs, period_seqs):
             cur_user        = pd.DataFrame({'mcc': mcc_seq, 'amnt': amnt_seq, 'period': period_seq})
