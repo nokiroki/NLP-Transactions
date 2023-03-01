@@ -92,13 +92,15 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        batch_size: int,
+        batch_size: int, 
         train_sequences: pd.DataFrame,
         val_sequences: pd.DataFrame,
         test_sequences: pd.DataFrame,
         mcc2id: Dict[int, int],
         discretizer_bins: int,
         is_global_features: bool = True,
+        m_last: int = 100,
+        m_period: int = 0,
         num_workers: int = 1
     ) -> None:
         super().__init__()
@@ -109,41 +111,46 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.test_sequences = test_sequences
         self.mcc2id = mcc2id
         self.is_global_features = is_global_features
+        self.m_last = m_last
+        self.m_period = m_period
 
         self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
         
-        mcc_seqs_train      = train_sequences.small_group
-        amnt_seqs_train     = train_sequences.amount_rur
-        labels_train        = train_sequences.target_flag.tolist()
-        mcc_seqs_train      = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_train]
-        amnt_seqs_train     = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_train]
+        self.train_ds   = self.create_dataset(train_sequences)
+        self.val_ds     = self.create_dataset(val_sequences)
+        self.test_ds    = self.create_dataset(test_sequences)
 
-        mcc_seqs_val        = val_sequences.small_group
-        amnt_seqs_val       = val_sequences.amount_rur
-        labels_val          = val_sequences.target_flag.tolist()
-        mcc_seqs_val        = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_val]
-        amnt_seqs_val       = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_val]
 
-        mcc_seqs_test       = test_sequences.small_group
-        amnt_seqs_test      = test_sequences.amount_rur
-        labels_test         = test_sequences.target_flag.tolist()
-        mcc_seqs_test       = [torch.LongTensor([mcc2id[code] for code in seq]) for seq in mcc_seqs_test]
-        amnt_seqs_test      = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in amnt_seqs_test]
+    def create_dataset(self, sequences):
+        mcc_seqs      = sequences.small_group
+        amnt_seqs     = sequences.amount_rur
+        period_seqs   = sequences.period
+        labels        = sequences.target_flag.tolist()
 
-        if is_global_features:
-            (avg_amnt_train, top_mcc_train), \
-            (avg_amnt_val, top_mcc_val), \
-            (avg_amnt_test, top_mcc_test) = self._get_agg_func()
+        mcc_seqs_processed, amnt_seqs_processed = self.process_sequences(self, mcc_seqs, amnt_seqs, period_seqs)
 
-            self.train_ds   = TransactionLabelDataset(mcc_seqs_train, amnt_seqs_train, labels_train, avg_amnt_train, top_mcc_train)
-            self.val_ds     = TransactionLabelDataset(mcc_seqs_val, amnt_seqs_val, labels_val, avg_amnt_val, top_mcc_val)
-            self.test_ds    = TransactionLabelDataset(mcc_seqs_test, amnt_seqs_test, labels_test, avg_amnt_test, top_mcc_test)
+        if self.is_global_features:
+            avg_amnt, top_mcc = self.get_agg_func(sequences)
+            return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels, avg_amnt, top_mcc)
         else:
-            self.train_ds   = TransactionLabelDataset(mcc_seqs_train, amnt_seqs_train, labels_train)
-            self.val_ds     = TransactionLabelDataset(mcc_seqs_val, amnt_seqs_val, labels_val)
-            self.test_ds    = TransactionLabelDataset(mcc_seqs_test, amnt_seqs_test, labels_test)
+            return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels)
 
-    
+
+    def process_sequences(self, mcc_seqs, amnt_seqs, period_seqs):
+        mcc_seqs_processed, amnt_seqs_processed = [], []
+        for mcc_seq, amnt_seq, period_seq in zip(mcc_seqs, amnt_seqs, period_seqs):
+            cur_user        = pd.DataFrame({'mcc': mcc_seq, 'amnt': amnt_seq, 'period': period_seq})
+            cur_user_subset = cur_user.iloc[-self.m_last:, :].copy()
+            if (len(cur_user) > self.m_last) and (self.m_period > 0):
+                cur_user_first         = cur_user.iloc[:-self.m_last, :].copy()
+                last_period            = cur_user_subset['period'].iloc[-1]
+                cur_user_period_subset = cur_user_first[cur_user_first['period'] == last_period].iloc[-self.m_period:, :].copy()
+                cur_user_subset        = pd.concat([cur_user_period_subset, cur_user_subset], axis=0)
+                
+            mcc_seqs_processed.append(torch.LongTensor([self.mcc2id[code] for code in cur_user_subset['mcc']]))
+            amnt_seqs_processed.append(torch.LongTensor(self.discretizer.transform(np.array(cur_user_subset['amnt']).reshape(-1, 1))).view(-1) + 1)
+
+
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
             self.train_ds,
@@ -198,21 +205,18 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         return mcc_seqs, amnt_seqs, labels, lengths, None, None
     
 
-    def _get_agg_func(self) -> List[Tuple[torch.Tensor, torch.Tensor]]:
-        train_val_test_agg_features = list()
-        for sequences in (self.train_sequences, self.val_sequences, self.test_sequences):
-            avg_amt = sequences.average_amt
-            top_mcc_1 = sequences.top_mcc_1
-            top_mcc_2 = sequences.top_mcc_2
-            top_mcc_3 = sequences.top_mcc_3
+    def get_agg_func(self, sequences) -> Tuple[torch.Tensor, torch.Tensor]:        
+        avg_amt = sequences.average_amt
+        top_mcc_1 = sequences.top_mcc_1
+        top_mcc_2 = sequences.top_mcc_2
+        top_mcc_3 = sequences.top_mcc_3
 
-            avg_amt = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in avg_amt]
-            top_mcc_seqs = [torch.stack((
-                    torch.LongTensor([self.mcc2id[code] for code in seq_1]),
-                    torch.LongTensor([self.mcc2id[code] for code in seq_2]),
-                    torch.LongTensor([self.mcc2id[code] for code in seq_3])
-                ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
-            ]
+        avg_amt = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in avg_amt]
+        top_mcc_seqs = [torch.stack((
+                torch.LongTensor([self.mcc2id[code] for code in seq_1]),
+                torch.LongTensor([self.mcc2id[code] for code in seq_2]),
+                torch.LongTensor([self.mcc2id[code] for code in seq_3])
+            ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
+        ]
 
-            train_val_test_agg_features.append((avg_amt, top_mcc_seqs))
-        return train_val_test_agg_features
+        return avg_amt, top_mcc_seqs
