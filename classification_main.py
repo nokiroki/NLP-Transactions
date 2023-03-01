@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -143,11 +143,17 @@ if __name__ == '__main__':
 
         tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs\\transformer'), 'data_without_global_context')
 
+        comet_logger = CometLogger(
+            api_key='SK2Kk2gDrGwkmHMtj6GZU1KYG',
+            project_name='NLP-transactions',
+            experiment_name='rnn_data_without_global_connection'
+        )
+
         trainer = Trainer(
             accelerator='gpu',
             devices=1,
             log_every_n_steps=20,
-            logger=tb_logger,
+            logger=comet_logger,
             deterministic=True,
             callbacks=callbacks,
             max_epochs=epochs,
