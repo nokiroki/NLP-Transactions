@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger
+from pytorch_lightning.loggers import TensorBoardLogger, CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -43,7 +43,12 @@ if __name__ == '__main__':
     m_period            = config.getint('All_models', 'm_period')
     period              = config.get('All_models', 'period')
     num_workers         = config.getint('All_models', 'num_workers')
+    iters               = config.getint('All_models', 'iters')
     num_heads           = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
+
+    # Необходим файл с токеном для логгирование на comet
+    with open('api_token.txt') as f:
+        api_token = f.read()
     
     # Чтения файла росбанка
     transactions = pd.read_csv(os.path.join(data_dir, 'rosbank\\train.csv'))
@@ -96,7 +101,7 @@ if __name__ == '__main__':
     ))
     
     # Цикл обучения для оценки uncertainty
-    for _ in range(5):
+    for _ in range(iters):
         model = TransactionGRU(
             emb_type,
             mcc_vocab_size,
@@ -151,17 +156,21 @@ if __name__ == '__main__':
             mode='max'
         )
 
-        checkpoint = ModelCheckpoint(monitor='val_auroc', mode='max')
+        checkpoint = ModelCheckpoint(monitor='val_auroc', mode='max', dirpath=os.path.join(logging_dir, 'checkpoints'))
         
         callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
-        tb_logger = TensorBoardLogger(os.path.join(logging_dir, 'tb_logs\\transformer'), 'data_without_global_context')
+        comet_logger = CometLogger(
+            api_key=api_token,
+            project_name='NLP-transactions',
+            experiment_name='test_exp'
+        )
 
         trainer = Trainer(
             accelerator='gpu',
             devices=1,
             log_every_n_steps=20,
-            logger=tb_logger,
+            logger=comet_logger,
             deterministic=True,
             callbacks=callbacks,
             max_epochs=epochs,
