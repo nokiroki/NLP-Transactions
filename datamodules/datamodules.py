@@ -101,6 +101,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         is_global_features: bool = True,
         m_last: int = 100,
         m_period: int = 0,
+        period: str = 'day',
         num_workers: int = 1
     ) -> None:
         super().__init__()
@@ -113,6 +114,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.is_global_features = is_global_features
         self.m_last = m_last
         self.m_period = m_period
+        self.period = period
 
         self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
         
@@ -124,7 +126,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
     def create_dataset(self, sequences):
         mcc_seqs      = sequences.small_group
         amnt_seqs     = sequences.amount_rur
-        period_seqs   = sequences.period
+        period_seqs   = sequences[self.period]
         labels        = sequences.target_flag.tolist()
 
         mcc_seqs_processed, amnt_seqs_processed = self.process_sequences(self, mcc_seqs, amnt_seqs, period_seqs)

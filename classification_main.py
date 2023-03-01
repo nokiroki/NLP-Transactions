@@ -133,7 +133,10 @@ if __name__ == '__main__':
             mcc2id,
             amnt_bins,
             is_global_features=use_global_features,
-            num_workers=num_workers
+            m_last=m_last,
+            m_period=m_period,
+            period=period,
+            num_workers=num_workers,
         )
 
         early_stop_callback = EarlyStopping(
