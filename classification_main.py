@@ -39,6 +39,9 @@ if __name__ == '__main__':
     permutation         = config.getboolean(conf_section, 'permutation')
     pe                  = config.getboolean(conf_section, 'pe')
     use_global_features = config.getboolean('All_models', 'use_global_features')
+    m_last              = config.getint('All_models', 'm_last')
+    m_period            = config.getint('All_models', 'm_period')
+    period              = config.getstr('All_models', 'period')
     num_workers         = config.getint('All_models', 'num_workers')
     num_heads           = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
     
@@ -51,6 +54,10 @@ if __name__ == '__main__':
     sequences = transactions.groupby('client_id').agg({
         'small_group': lambda x: x.tolist(),
         'amount_rur': lambda x: x.tolist(),
+        'hour': lambda x: x.tolist(), 
+        'day': lambda x: x.tolist(), 
+        'day_of_week': lambda x: x.tolist(), 
+        'month': lambda x: x.tolist(), 
         'target_flag': lambda x: x.tolist()[0],
     })
     if use_global_features:
