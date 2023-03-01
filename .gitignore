@@ -130,3 +130,5 @@ dmypy.json
 
 data/
 logging/
+
+api_token.txt
