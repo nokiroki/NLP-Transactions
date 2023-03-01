@@ -150,6 +150,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
             mcc_seqs_processed.append(torch.LongTensor([self.mcc2id[code] for code in cur_user_subset['mcc']]))
             amnt_seqs_processed.append(torch.LongTensor(self.discretizer.transform(np.array(cur_user_subset['amnt']).reshape(-1, 1))).view(-1) + 1)
 
+        return mcc_seqs_processed, amnt_seqs_processed
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
