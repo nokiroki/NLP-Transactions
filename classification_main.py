@@ -41,7 +41,7 @@ if __name__ == '__main__':
     use_global_features = config.getboolean('All_models', 'use_global_features')
     m_last              = config.getint('All_models', 'm_last')
     m_period            = config.getint('All_models', 'm_period')
-    period              = config.getstr('All_models', 'period')
+    period              = config.get('All_models', 'period')
     num_workers         = config.getint('All_models', 'num_workers')
     num_heads           = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
     
@@ -49,15 +49,19 @@ if __name__ == '__main__':
     transactions = pd.read_csv(os.path.join(data_dir, 'rosbank\\train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
+    transactions['hour'] = transactions.TRDATETIME.dt.hour
+    transactions['day'] = transactions.TRDATETIME.dt.day
+    transactions['day_of_week'] = transactions.TRDATETIME.dt.day_of_week
+    transactions['month'] = transactions.TRDATETIME.dt.month
     transactions = transactions.rename(columns={'cl_id':'client_id', 'MCC':'small_group', 'amount':'amount_rur'})
 
     sequences = transactions.groupby('client_id').agg({
         'small_group': lambda x: x.tolist(),
-        'amount_rur': lambda x: x.tolist(),
-        'hour': lambda x: x.tolist(), 
-        'day': lambda x: x.tolist(), 
+        'amount_rur':  lambda x: x.tolist(),
+        'hour':        lambda x: x.tolist(), 
+        'day':         lambda x: x.tolist(), 
         'day_of_week': lambda x: x.tolist(), 
-        'month': lambda x: x.tolist(), 
+        'month':       lambda x: x.tolist(), 
         'target_flag': lambda x: x.tolist()[0],
     })
     if use_global_features:
