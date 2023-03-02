@@ -21,7 +21,7 @@ if __name__ == '__main__':
     config, (data_dir, logging_dir) = get_config_with_dirs('config.ini')
     
     # Чтение данных из конфига
-    model_type = config.get('Churn_classification', 'model_type')
+    model_type = config.get('Churn_classification', 'model_type').lower()
     conf_section = 'RNN' if model_type == 'rnn' else 'Transformer'
 
     batch_size              = config.getint(conf_section, 'batch_size')
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     m_period                = config.getint('All_models', 'm_period')
     period                  = config.get('All_models', 'period')
     num_workers             = config.getint('All_models', 'num_workers')
-    iters                   = config.getint('All_models', 'iters')
+    n_experiments           = config.getint('All_models', 'n_experiments')
     num_heads               = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
 
     # Необходим файл с токеном для логгирование на comet
@@ -102,7 +102,7 @@ if __name__ == '__main__':
     ))
     
     # Цикл обучения для оценки uncertainty
-    for i in range(iters):
+    for i in range(n_experiments):
         model = TransactionGRU(
             emb_type,
             mcc_vocab_size,
@@ -157,7 +157,7 @@ if __name__ == '__main__':
             mode='max'
         )
 
-        experiment_name = f'rnn_gc_{global_features_step}_day_{i}'
+        experiment_name = f'test_transformer_remote'
 
         checkpoint = ModelCheckpoint(
             monitor='val_auroc',
