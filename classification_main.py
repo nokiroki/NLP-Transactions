@@ -52,7 +52,7 @@ if __name__ == '__main__':
         api_token = f.read()
     
     # Чтения файла росбанка
-    transactions = pd.read_csv(os.path.join(data_dir, 'rosbank\\train.csv'))
+    transactions = pd.read_csv(os.path.join(data_dir, 'rosbank', 'train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
     transactions['hour'] = transactions.TRDATETIME.dt.hour
