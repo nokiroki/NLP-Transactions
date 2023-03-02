@@ -184,7 +184,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
             self.test_ds,
             batch_size=self.batch_size,
             num_workers=self.num_workers,
-            collate_fn=self._rnn_collate
+            collate_fn=self._rnn_collate_with_gc if self.is_global_features else self._rnn_collate
         )
 
 
