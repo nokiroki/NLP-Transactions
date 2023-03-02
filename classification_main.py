@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 
 from pytorch_lightning import Trainer
-from pytorch_lightning.loggers import TensorBoardLogger, CometLogger
+from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
@@ -24,27 +24,28 @@ if __name__ == '__main__':
     model_type = config.get('Churn_classification', 'model_type')
     conf_section = 'RNN' if model_type == 'rnn' else 'Transformer'
 
-    batch_size          = config.getint(conf_section, 'batch_size')
-    lr                  = config.getfloat(conf_section, 'lr')
-    epochs              = config.getint(conf_section, 'epochs')
-    emb_type            = config.get(conf_section, 'emb_type')
-    mcc_vocab_size      = config.getint(conf_section, 'mcc_vocab_size')
-    mcc_embed_size      = config.getint(conf_section, 'mcc_emb_size')
-    amnt_bins           = config.getint(conf_section, 'amnt_bins')
-    amnt_emb_size       = config.getint(conf_section, 'amnt_emb_size')
-    emb_size            = config.getint(conf_section, 'emb_size')
-    layers              = config.getint(conf_section, 'layers')
-    hidden_dim          = config.getint(conf_section, 'hidden_dim')
-    dropout             = config.getfloat(conf_section, 'dropout')
-    permutation         = config.getboolean(conf_section, 'permutation')
-    pe                  = config.getboolean(conf_section, 'pe')
-    use_global_features = config.getboolean('All_models', 'use_global_features')
-    m_last              = config.getint('All_models', 'm_last')
-    m_period            = config.getint('All_models', 'm_period')
-    period              = config.get('All_models', 'period')
-    num_workers         = config.getint('All_models', 'num_workers')
-    iters               = config.getint('All_models', 'iters')
-    num_heads           = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
+    batch_size              = config.getint(conf_section, 'batch_size')
+    lr                      = config.getfloat(conf_section, 'lr')
+    epochs                  = config.getint(conf_section, 'epochs')
+    emb_type                = config.get(conf_section, 'emb_type')
+    mcc_vocab_size          = config.getint(conf_section, 'mcc_vocab_size')
+    mcc_embed_size          = config.getint(conf_section, 'mcc_emb_size')
+    amnt_bins               = config.getint(conf_section, 'amnt_bins')
+    amnt_emb_size           = config.getint(conf_section, 'amnt_emb_size')
+    emb_size                = config.getint(conf_section, 'emb_size')
+    layers                  = config.getint(conf_section, 'layers')
+    hidden_dim              = config.getint(conf_section, 'hidden_dim')
+    dropout                 = config.getfloat(conf_section, 'dropout')
+    permutation             = config.getboolean(conf_section, 'permutation')
+    pe                      = config.getboolean(conf_section, 'pe')
+    use_global_features     = config.getboolean('All_models', 'use_global_features')
+    global_features_step    = config.getint('All_models', 'global_features_step')
+    m_last                  = config.getint('All_models', 'm_last')
+    m_period                = config.getint('All_models', 'm_period')
+    period                  = config.get('All_models', 'period')
+    num_workers             = config.getint('All_models', 'num_workers')
+    iters                   = config.getint('All_models', 'iters')
+    num_heads               = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
 
     # Необходим файл с токеном для логгирование на comet
     with open('api_token.txt') as f:
@@ -70,7 +71,7 @@ if __name__ == '__main__':
         'target_flag': lambda x: x.tolist()[0],
     })
     if use_global_features:
-        transactions = global_context(transactions)
+        transactions = global_context(transactions, global_features_step)
         sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
             'average_amt': lambda x: x.tolist(),
             'top_mcc_1': lambda x: x.tolist(),
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     ))
     
     # Цикл обучения для оценки uncertainty
-    for _ in range(iters):
+    for i in range(iters):
         model = TransactionGRU(
             emb_type,
             mcc_vocab_size,
@@ -156,14 +157,19 @@ if __name__ == '__main__':
             mode='max'
         )
 
-        checkpoint = ModelCheckpoint(monitor='val_auroc', mode='max', dirpath=os.path.join(logging_dir, 'checkpoints'))
+        experiment_name = f'rnn_gc_{global_features_step}_day_{i}'
+
+        checkpoint = ModelCheckpoint(
+            monitor='val_auroc',
+            mode='max',
+            dirpath=os.path.join(logging_dir, 'checkpoints', experiment_name))
         
         callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
         comet_logger = CometLogger(
             api_key=api_token,
             project_name='NLP-transactions',
-            experiment_name='test_exp'
+            experiment_name=experiment_name
         )
 
         trainer = Trainer(
