@@ -38,5 +38,5 @@ RUN curl -sLo ~/miniconda.sh https://repo.continuum.io/miniconda/Miniconda3-py38
 
 RUN pip install notebook
 RUN pip install jupyterlab
-RUN git clone https://github.com/nokiroki/NLP-Transactions.git
+# RUN git clone https://github.com/nokiroki/NLP-Transactions.git
 CMD jupyter notebook --allow-root --ip='0.0.0.0' --port=8890 --NotebookApp.token='' --NotebookApp.password=''
