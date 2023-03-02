@@ -19,5 +19,6 @@ class UnfreezeEmbeddings(Callback):
     
     def on_train_epoch_start(self, trainer: Trainer, pl_module: LightningModule) -> None:
         if self.n_epoch == self.unfreeze_after_epoch:
-            pl_module.embeddings.requires_grad_(True)
+            pl_module.mcc_embeddings.requires_grad_(True)
+            pl_module.amnt_embeddings.requires_grad_(True)
         self.n_epoch += 1

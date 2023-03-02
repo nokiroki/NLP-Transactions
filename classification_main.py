@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
 from models.churn_classification import TransactionGRU, Transformer
-from models.callbacks import FreezeEmbeddings
+from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from utils.data_utils import split_data, global_context
 from utils.config_utils import get_config_with_dirs
@@ -22,11 +22,17 @@ if __name__ == '__main__':
     
     # Чтение данных из конфига
     model_type = config.get('Churn_classification', 'model_type').lower()
-    conf_section = 'RNN' if model_type == 'rnn' else 'Transformer'
+    conf_section    = 'RNN' if model_type == 'rnn' else 'Transformer'
+    experiment_name         = config.get('All_models', 'experiment_name')
+    emb_weigths_name         = config.get('All_models', 'emb_weigths_name')
+    train_embeddings        = config.getboolean('All_models', 'train_embedding')
 
     batch_size              = config.getint(conf_section, 'batch_size')
     lr                      = config.getfloat(conf_section, 'lr')
     epochs                  = config.getint(conf_section, 'epochs')
+    num_workers             = config.getint('All_models', 'num_workers')
+    n_experiments           = config.getint('All_models', 'n_experiments')
+
     emb_type                = config.get(conf_section, 'emb_type')
     mcc_vocab_size          = config.getint(conf_section, 'mcc_vocab_size')
     mcc_embed_size          = config.getint(conf_section, 'mcc_emb_size')
@@ -43,8 +49,6 @@ if __name__ == '__main__':
     m_last                  = config.getint('All_models', 'm_last')
     m_period                = config.getint('All_models', 'm_period')
     period                  = config.get('All_models', 'period')
-    num_workers             = config.getint('All_models', 'num_workers')
-    n_experiments           = config.getint('All_models', 'n_experiments')
     num_heads               = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
 
     # Необходим файл с токеном для логгирование на comet
@@ -91,14 +95,8 @@ if __name__ == '__main__':
     #TODO сделать через интерфейс подгрузку весов
     weights = torch.load(os.path.join(
         logging_dir,
-        'best_model_params',
-        ''.join((
-            'tr2vec_mcc=16',
-            '_amnt=8',
-            '_emb=16',
-            '_window=10',
-            '_loss=ordinal.pth'
-        ))
+        'embedding_weights',
+        emb_weigths_name
     ))
     
     # Цикл обучения для оценки uncertainty
@@ -157,14 +155,15 @@ if __name__ == '__main__':
             mode='max'
         )
 
-        experiment_name = f'test_transformer_remote'
-
         checkpoint = ModelCheckpoint(
             monitor='val_auroc',
             mode='max',
             dirpath=os.path.join(logging_dir, 'checkpoints', experiment_name))
         
-        callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
+        if train_embeddings:
+            callbacks = [checkpoint, early_stop_callback, UnfreezeEmbeddings()]
+        else:
+            callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
         comet_logger = CometLogger(
             api_key=api_token,
