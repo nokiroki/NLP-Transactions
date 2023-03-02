@@ -157,7 +157,7 @@ if __name__ == '__main__':
             mode='max'
         )
 
-        experiment_name = f'rnn_gc_{global_features_step}_day_{i}'
+        experiment_name = f'test_transformer_remote'
 
         checkpoint = ModelCheckpoint(
             monitor='val_auroc',
