@@ -23,7 +23,6 @@ if __name__ == '__main__':
     # Чтение данных из конфига
     model_type = config.get('Churn_classification', 'model_type').lower()
     conf_section    = 'RNN' if model_type == 'rnn' else 'Transformer'
-    
     experiment_name         = config.get('All_models', 'experiment_name')
     emb_weigths_name        = config.get('All_models', 'emb_weigths_name')
     train_embeddings        = config.getboolean('All_models', 'train_embedding')
