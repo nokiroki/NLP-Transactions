@@ -33,7 +33,11 @@ def split_data(
     return train_data, val_data, test_data
 
 
-def global_context(transactions: pd.DataFrame, time_step: int = 1) -> pd.DataFrame:
+def global_context(
+    transactions: pd.DataFrame,
+    time_step: int = 1,
+    weekend_accounting: bool = False
+) -> pd.DataFrame:
     start_time = transactions.iloc[0]['TRDATETIME']
     start_index = 0
 
@@ -62,7 +66,8 @@ def global_context(transactions: pd.DataFrame, time_step: int = 1) -> pd.DataFra
 
     transactions_new = transactions.copy()
 
-    transactions_new['is_weekend'] = is_weekend_arr
+    if weekend_accounting:
+        transactions_new['is_weekend'] = is_weekend_arr
     transactions_new['average_amt'] = mean_tr
     transactions_new[['top_mcc_1', 'top_mcc_2', 'top_mcc_3']] = top_mcc.astype(np.int32)
 
