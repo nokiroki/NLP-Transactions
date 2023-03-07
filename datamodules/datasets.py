@@ -13,17 +13,8 @@ class T2VDataset(Dataset):
         self, 
         mcc_sequences: Iterable[torch.LongTensor],
         amnt_sequences: Iterable[torch.LongTensor],
-        mcc2id: Dict[int, int],
         window_size: int,
-        subsample: bool = False,
-        class_proportions: Optional[list] = None
     ) -> None:
-        if subsample:
-            assert class_proportions is not None
-            class_proportions = np.array(class_proportions)
-            keep_probs = (np.sqrt(class_proportions / 0.2) + 1) * 0.2 / class_proportions
-        else:
-            keep_probs = np.ones(len(mcc2id))
 
         self.id2seq_id = []
         self.id2offset = []
