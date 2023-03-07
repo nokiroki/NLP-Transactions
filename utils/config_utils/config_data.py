@@ -8,6 +8,7 @@ class DataConf:
     data_dir: str
     logging_dir: str
     emb_dir:str
+    dataset: str
 
 
 @dataclass
@@ -45,6 +46,7 @@ class ParamsConf:
     permutation         : bool
     pe                  : bool
     use_global_features : bool
+    is_weekends         : bool
     global_features_step: int
     m_last              : int
     m_period            : int

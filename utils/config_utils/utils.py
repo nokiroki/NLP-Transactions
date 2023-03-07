@@ -15,7 +15,8 @@ def get_config_with_dirs(config_file: str) -> Tuple[
     data_conf = DataConf(
         config.get('Data', 'data_dir'),
         config.get('Logging', 'logging_dir'),
-        config.get('Logging', 'emb_dir')
+        config.get('Logging', 'emb_dir'),
+        config.get('Data', 'dataset')
     )
 
     if not os.path.exists(data_conf.logging_dir):
@@ -55,6 +56,7 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.getboolean(conf_section, 'permutation'),
         config.getboolean(conf_section, 'pe'),
         config.getboolean('All_models', 'use_global_features'),
+        config.getboolean('All_models', 'is_weekends'),
         config.getint('All_models', 'global_features_step'),
         config.getint('All_models', 'm_last'),
         config.getint('All_models', 'm_period'),
