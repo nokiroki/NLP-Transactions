@@ -14,11 +14,11 @@ from models.churn_classification import TransactionGRU, Transformer
 from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from utils.data_utils import split_data, global_context
-from utils.config_utils import get_config_with_dirs
+from utils.config_utils import get_config_with_dirs_old
 
 
 if __name__ == '__main__':
-    config, (data_dir, logging_dir, emb_dir) = get_config_with_dirs('config.ini')
+    config, (data_dir, logging_dir, emb_dir) = get_config_with_dirs_old('config.ini')
     
     # Чтение данных из конфига
     model_type = config.get('Churn_classification', 'model_type').lower()
