@@ -1,4 +1,5 @@
 import os
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
@@ -11,7 +12,7 @@ def rb_preprocessing(
     data_conf: DataConf,
     model_conf: ModelConf,
     params_conf: ParamsConf
-):
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     transactions = pd.read_csv(os.path.join(data_conf.data_dir, 'rosbank', 'train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
