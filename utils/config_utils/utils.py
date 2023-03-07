@@ -9,7 +9,8 @@ def get_config_with_dirs(config_file: str) -> Tuple[ConfigParser, Tuple[str, str
 
     data_dir = config.get('Data', 'data_dir')
     logging_dir = config.get('Logging', 'logging_dir')
+    emb_dir = config.get('Logging', 'emb_dir')
     if not os.path.exists(logging_dir):
         os.mkdir(logging_dir)
 
-    return config, (data_dir, logging_dir)
+    return config, (data_dir, logging_dir, emb_dir)

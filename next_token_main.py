@@ -10,7 +10,7 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models.churn_classification import TransactionGRU, Transformer
+from models.next_token_classification import TransactionGRU, Transformer
 from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from utils.data_utils import split_data, global_context
@@ -65,15 +65,32 @@ if __name__ == '__main__':
     transactions['month'] = transactions.TRDATETIME.dt.month
     transactions = transactions.rename(columns={'cl_id':'client_id', 'MCC':'small_group', 'amount':'amount_rur'})
 
+    n_classes = transactions.small_group.nunique()
+    mcc2id = dict(zip(
+        transactions.small_group.unique(), 
+        np.arange(transactions.small_group.nunique()) + 1
+    ))
+
+
     sequences = transactions.groupby('client_id').agg({
-        'small_group': lambda x: x.tolist(),
-        'amount_rur':  lambda x: x.tolist(),
-        'hour':        lambda x: x.tolist(), 
-        'day':         lambda x: x.tolist(), 
-        'day_of_week': lambda x: x.tolist(), 
-        'month':       lambda x: x.tolist(), 
-        'target_flag': lambda x: x.tolist()[0],
+    'small_group': lambda x: x.tolist()[:-1],
+    'amount_rur':  lambda x: x.tolist()[:-1],
+    'hour':        lambda x: x.tolist()[:-1], 
+    'day':         lambda x: x.tolist()[:-1], 
+    'day_of_week': lambda x: x.tolist()[:-1], 
+    'month':       lambda x: x.tolist()[:-1], 
     })
+
+    label = transactions.groupby('client_id').agg({
+        'small_group': lambda x: x.tolist()[-1]
+    }).rename(columns={'small_group':'target_flag'})
+
+    sequences = sequences.join(label)
+    mask = sequences['small_group'].apply(lambda x: len(x)) > 5
+    sequences = sequences[mask]
+    sequences['target_flag'] = sequences['target_flag'].map(mcc2id)
+
+
     if use_global_features:
         transactions = global_context(transactions, global_features_step)
         sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
@@ -85,11 +102,6 @@ if __name__ == '__main__':
 
 
     train_sequences, val_sequences, test_sequences = split_data(sequences, use_train_ratio=1.)
-    mcc2id = dict(zip(
-        transactions.small_group.unique(), 
-        np.arange(transactions.small_group.nunique()) + 1
-    ))
-
 
     results = list()
     #TODO сделать через интерфейс подгрузку весов
@@ -113,7 +125,8 @@ if __name__ == '__main__':
             dropout,
             lr,
             permutation,
-            pe
+            pe,
+            n_classes
         ) if model_type == 'rnn' else \
         Transformer(
             emb_type,
@@ -128,7 +141,8 @@ if __name__ == '__main__':
             lr,
             num_heads,
             permutation,
-            pe   
+            pe,
+            n_classes  
         )
 
         model.set_embeddings(weights['mccs'], weights['amnts'])
@@ -148,7 +162,7 @@ if __name__ == '__main__':
         )
 
         early_stop_callback = EarlyStopping(
-            monitor='val_auroc',
+            monitor='val_accuracy',
             min_delta=1e-3,
             patience=4,
             verbose=False,
@@ -156,10 +170,10 @@ if __name__ == '__main__':
         )
 
         checkpoint = ModelCheckpoint(
-            monitor='val_auroc',
+            monitor='val_accuracy',
             mode='max',
             dirpath=os.path.join(logging_dir, 'checkpoints', experiment_name))
-        
+
         if train_embeddings:
             callbacks = [checkpoint, early_stop_callback, UnfreezeEmbeddings()]
         else:
@@ -182,9 +196,9 @@ if __name__ == '__main__':
             auto_lr_find=True
         )
 
+        
         trainer.fit(model, datamodule=datamodule)
-        model_best = TransactionGRU.load_from_checkpoint(checkpoint.best_model_path) \
-                    if model_type == 'rnn' else \
-                    Transformer.load_from_checkpoint(checkpoint.best_model_path)
-        res = trainer.test(model_best, datamodule)[0]['test_auroc']
+
+        model_best = model.load_from_checkpoint(checkpoint.best_model_path)
+        res = trainer.test(model_best, datamodule)[0]['test_accuracy']
         results.append(res)
