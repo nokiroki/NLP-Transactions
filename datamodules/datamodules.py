@@ -11,6 +11,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 import pytorch_lightning as pl
 
+from utils.config_utils import ClassificationParamsConf, LearningConf
 from .datasets import T2VDataset, TransactionLabelDataset
 
 
@@ -91,29 +92,24 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        batch_size: int, 
         train_sequences: pd.DataFrame,
         val_sequences: pd.DataFrame,
         test_sequences: pd.DataFrame,
-        discretizer_bins: int,
-        is_global_features: bool = True,
-        m_last: int = 100,
-        m_period: int = 0,
-        period: str = 'day',
-        num_workers: int = 1
+        params_conf: ClassificationParamsConf,
+        learning_conf: LearningConf
     ) -> None:
         super().__init__()
-        self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.batch_size = learning_conf.batch_size
+        self.num_workers = learning_conf.num_workers
         self.train_sequences = train_sequences
         self.val_sequences = val_sequences
         self.test_sequences = test_sequences
-        self.is_global_features = is_global_features
-        self.m_last = m_last
-        self.m_period = m_period
-        self.period = period
+        self.is_global_features = params_conf.use_global_features
+        self.m_last = params_conf.m_last
+        self.m_period = params_conf.m_period
+        self.period = params_conf.period
 
-        self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
+        self.discretizer = fit_discretizer(params_conf.amnt_bins, train_sequences['amount_rur'])
         
         self.train_ds   = self.create_dataset(train_sequences)
         self.val_ds     = self.create_dataset(val_sequences)

@@ -6,71 +6,72 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from models.common_layers import PositionalEncoding
 from models.churn_classification import BaseModel
+from utils.config_utils import LearningConf, ClassificationParamsConf
 
 
 class TransactionGRU(BaseModel):
 
     def __init__(
         self,
-        emb_type: str,
-        mcc_vocab_size: int,
-        mcc_emb_size: int,
-        amnt_bins: int,
-        amnt_emb_size: int,
-        emb_size: int,
-        hidden_size: int,
-        num_layers: int,
-        dropout: float,
-        lr: float,
-        is_perm: bool = False,
-        is_pe: bool = False,
+        learning_conf: LearningConf,
+        params_conf: ClassificationParamsConf,
         *args: Any,
         **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
-        assert emb_type in ('concat', 'tr2vec')
+        assert params_conf.emb_type in ('concat', 'tr2vec')
 
-        # if emb_type == 'concat':
-        #     assert mcc_emb_size + amnt_emb_size == emb_size
+        if params_conf.emb_type == 'concat':
+            params_conf.emb_size = params_conf.mcc_embed_size + params_conf.amnt_emb_size
+            if params_conf.use_global_features:
+                params_conf.emb_size += (params_conf.amnt_emb_size + 3 * params_conf.mcc_embed_size)
 
         self.save_hyperparameters({
-            'emb_type'          : emb_type,
-            'mcc_vocab_size'    : mcc_vocab_size,
-            'mcc_emb_size'      : mcc_emb_size,
-            'amnt_bins'         : amnt_bins,
-            'amnt_emb_size'     : amnt_emb_size,
-            'emb_size'          : emb_size,
-            'hidden_size'       : hidden_size,
-            'num_layers'        : num_layers,
-            'dropout'           : dropout,
-            'lr'                : lr,
-            'is_perm'           : is_perm,
-            'is_pe'             : is_pe
+            'emb_type'          : params_conf.emb_type,
+            'mcc_vocab_size'    : params_conf.mcc_vocab_size,
+            'mcc_emb_size'      : params_conf.mcc_embed_size,
+            'amnt_bins'         : params_conf.amnt_bins,
+            'amnt_emb_size'     : params_conf.amnt_emb_size,
+            'emb_size'          : params_conf.emb_size,
+            'hidden_size'       : params_conf.hidden_dim,
+            'num_layers'        : params_conf.layers,
+            'dropout'           : params_conf.dropout,
+            'lr'                : learning_conf.lr,
+            'is_perm'           : params_conf.permutation,
+            'is_pe'             : params_conf.pe
         })
 
-        self.is_perm = is_perm
-        self.lr = lr
+        self.mcc_embeddings     = nn.Embedding(
+            self.hparams['mcc_vocab_size'] + 1,
+            self.hparams['mcc_emb_size'],
+            padding_idx=0
+        )
+        self.amnt_embeddings    = nn.Embedding(
+            self.hparams['amnt_bins'] + 1,
+            self.hparams['amnt_emb_size'],
+            padding_idx=0)
 
-        self.mcc_embeddings     = nn.Embedding(mcc_vocab_size + 1, mcc_emb_size, padding_idx=0)
-        self.amnt_embeddings    = nn.Embedding(amnt_bins + 1, amnt_emb_size, padding_idx=0)
-
-        if emb_type == 'concat':
+        if params_conf.emb_type == 'concat':
             self.emb_linear = nn.Identity()
         else:
-            self.emb_linear = nn.Linear(mcc_emb_size + amnt_emb_size, emb_size, bias=False)
+            self.emb_linear = nn.Linear(
+                self.hparams['mcc_embed_size'] + self.hparams['amnt_emb_size'],
+                self.hparams['emb_size'],
+                bias=False
+            )
 
-        self.pos_enc = PositionalEncoding(emb_size) if is_pe else nn.Identity()
+        self.pos_enc = PositionalEncoding(self.hparams['emb_size']) if self.hparams['is_pe'] else nn.Identity()
 
         self.rnn = nn.GRU(
-            emb_size,
-            hidden_size,
-            num_layers,
+            self.hparams['emb_size'],
+            self.hparams['hidden_size'],
+            self.hparams['num_layers'],
             bidirectional=True,
             batch_first=True,
-            dropout=dropout
+            dropout=self.hparams['dropout']
         )
 
-        self.predictor = nn.Linear(2 * hidden_size, 1)
+        self.predictor = nn.Linear(2 * self.hparams['hidden_size'], 1)
 
 
     def set_embeddings(
@@ -105,7 +106,7 @@ class TransactionGRU(BaseModel):
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
         
-        if self.is_perm:
+        if self.hparams['is_perm']:
             perm = torch.randperm(embs.size(1))
             embs = embs[:, perm, :]
 
@@ -124,5 +125,5 @@ class TransactionGRU(BaseModel):
     
 
     def configure_optimizers(self) -> Any:
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams['lr'])
         return {'optimizer': optimizer}

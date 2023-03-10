@@ -8,9 +8,19 @@ import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import STEP_OUTPUT, EPOCH_OUTPUT
 
 from utils.metrics import auroc
+from utils.config_utils import LearningConf, ClassificationParamsConf
 
 
 class BaseModel(pl.LightningModule, ABC):
+
+    def __init__(
+        self,
+        learning_conf: LearningConf,
+        params_conf: ClassificationParamsConf,
+        *args: Any,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     def forward(

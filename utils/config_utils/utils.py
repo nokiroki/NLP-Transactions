@@ -2,11 +2,11 @@ from typing import Tuple
 from configparser import ConfigParser
 import os
 
-from .config_data import ModelConf, ParamsConf, LearningConf, DataConf
+from .config_data import ModelConf, ClassificationParamsConf, LearningConf, DataConf
 
 
 def get_config_with_dirs(config_file: str) -> Tuple[
-    Tuple[DataConf, ModelConf, LearningConf, ParamsConf],
+    Tuple[DataConf, ModelConf, LearningConf, ClassificationParamsConf],
     ConfigParser
 ]:
     config = ConfigParser()
@@ -43,7 +43,9 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.getint('All_models', 'n_experiments')
     )
 
-    params_conf = ParamsConf(
+    params_conf = ClassificationParamsConf(
+        config.getboolean(conf_section, 'pretrained_embed'),
+        config.getboolean(conf_section, 'train_embed'),
         config.get(conf_section, 'emb_type'),
         config.getint(conf_section, 'mcc_vocab_size'),
         config.getint(conf_section, 'mcc_emb_size'),
