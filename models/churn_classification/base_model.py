@@ -13,15 +13,6 @@ from utils.config_utils import LearningConf, ClassificationParamsConf
 
 class BaseModel(pl.LightningModule, ABC):
 
-    def __init__(
-        self,
-        learning_conf: LearningConf,
-        params_conf: ClassificationParamsConf,
-        *args: Any,
-        **kwargs: Any
-    ) -> None:
-        super().__init__(*args, **kwargs)
-
     @abstractmethod
     def forward(
         self,

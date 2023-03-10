@@ -28,8 +28,8 @@ if __name__ == '__main__':
     )
 
     results = list()
-    #TODO сделать через интерфейс подгрузку весов
     
+    #TODO сделать через интерфейс подгрузку весов
     if params_conf.pretrained_embed:
         weights = torch.load(os.path.join(
             data_conf.emb_dir,
@@ -40,11 +40,36 @@ if __name__ == '__main__':
     # Цикл обучения для оценки uncertainty
     for i in range(learning_conf.n_experiments):
         model = TransactionGRU(
-            learning_conf,
-            params_conf
+            params_conf.emb_type,
+            params_conf.mcc_vocab_size,
+            params_conf.mcc_embed_size,
+            params_conf.amnt_bins,
+            params_conf.amnt_bins,
+            params_conf.emb_size,
+            params_conf.hidden_dim,
+            params_conf.output_dim,
+            params_conf.layers,
+            params_conf.dropout,
+            learning_conf.lr,
+            params_conf.use_global_features,
+            params_conf.permutation,
+            params_conf.pe
         ) if model_conf.model_type == 'rnn' else Transformer(
-            learning_conf,
-            params_conf   
+            params_conf.emb_type,
+            params_conf.mcc_vocab_size,
+            params_conf.mcc_embed_size,
+            params_conf.amnt_bins,
+            params_conf.amnt_bins,
+            params_conf.emb_size,
+            params_conf.hidden_dim,
+            params_conf.output_dim,
+            params_conf.layers,
+            params_conf.dropout,
+            learning_conf.lr,
+            params_conf.num_heads,
+            params_conf.use_global_features,
+            params_conf.permutation,
+            params_conf.pe  
         )
 
         model.set_embeddings(weights['mccs'], weights['amnts'])

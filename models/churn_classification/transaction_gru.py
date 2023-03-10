@@ -13,32 +13,46 @@ class TransactionGRU(BaseModel):
 
     def __init__(
         self,
-        learning_conf: LearningConf,
-        params_conf: ClassificationParamsConf,
+        emb_type: str,
+        mcc_vocab_size: int,
+        mcc_emb_size: int,
+        amnt_bins: int,
+        amnt_emb_size: int,
+        emb_size: int,
+        hidden_size: int,
+        output_dim: int,
+        num_layers: int,
+        dropout: float,
+        lr: float,
+        is_gc: bool,
+        is_perm: bool,
+        is_pe: bool,
         *args: Any,
         **kwargs: Any
     ) -> None:
         super().__init__(*args, **kwargs)
-        assert params_conf.emb_type in ('concat', 'tr2vec')
+        assert emb_type in ('concat', 'tr2vec')
 
-        if params_conf.emb_type == 'concat':
-            params_conf.emb_size = params_conf.mcc_embed_size + params_conf.amnt_emb_size
-            if params_conf.use_global_features:
-                params_conf.emb_size += (params_conf.amnt_emb_size + 3 * params_conf.mcc_embed_size)
+        if emb_type == 'concat':
+            emb_size = mcc_emb_size + amnt_emb_size
+            if is_gc:
+                emb_size += (amnt_emb_size + 3 * mcc_emb_size)
 
         self.save_hyperparameters({
-            'emb_type'          : params_conf.emb_type,
-            'mcc_vocab_size'    : params_conf.mcc_vocab_size,
-            'mcc_emb_size'      : params_conf.mcc_embed_size,
-            'amnt_bins'         : params_conf.amnt_bins,
-            'amnt_emb_size'     : params_conf.amnt_emb_size,
-            'emb_size'          : params_conf.emb_size,
-            'hidden_size'       : params_conf.hidden_dim,
-            'num_layers'        : params_conf.layers,
-            'dropout'           : params_conf.dropout,
-            'lr'                : learning_conf.lr,
-            'is_perm'           : params_conf.permutation,
-            'is_pe'             : params_conf.pe
+            'emb_type'          : emb_type,
+            'mcc_vocab_size'    : mcc_vocab_size,
+            'mcc_emb_size'      : mcc_emb_size,
+            'amnt_bins'         : amnt_bins,
+            'amnt_emb_size'     : amnt_emb_size,
+            'emb_size'          : emb_size,
+            'hidden_size'       : hidden_size,
+            'output_dim'        : output_dim,
+            'num_layers'        : num_layers,
+            'dropout'           : dropout,
+            'lr'                : lr,
+            'is_gc'             : is_gc,
+            'is_perm'           : is_perm,
+            'is_pe'             : is_pe
         })
 
         self.mcc_embeddings     = nn.Embedding(
@@ -51,7 +65,7 @@ class TransactionGRU(BaseModel):
             self.hparams['amnt_emb_size'],
             padding_idx=0)
 
-        if params_conf.emb_type == 'concat':
+        if self.hparams['emb_type'] == 'concat':
             self.emb_linear = nn.Identity()
         else:
             self.emb_linear = nn.Linear(
@@ -71,7 +85,7 @@ class TransactionGRU(BaseModel):
             dropout=self.hparams['dropout']
         )
 
-        self.predictor = nn.Linear(2 * self.hparams['hidden_size'], 1)
+        self.predictor = nn.Linear(2 * self.hparams['hidden_size'], self.hparams['output_dim'])
 
 
     def set_embeddings(
