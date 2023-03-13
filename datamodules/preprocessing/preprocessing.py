@@ -2,14 +2,14 @@ from typing import Tuple
 
 import pandas as pd
 
-from utils.config_utils import DataConf, ModelConf, ParamsConf
+from utils.config_utils import DataConf, ModelConf, ClassificationParamsConf
 from .rosbank_preprocessing import rb_preprocessing
 
 
 def data_preprocessing(
         data_conf: DataConf,
         model_conf: ModelConf,
-        params_conf: ParamsConf
+        params_conf: ClassificationParamsConf
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     if data_conf.dataset == 'rosbank':
         return rb_preprocessing(data_conf, model_conf, params_conf)

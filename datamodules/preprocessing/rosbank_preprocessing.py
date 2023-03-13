@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 
 from utils.data_utils import global_context, split_data
-from utils.config_utils import DataConf, ModelConf, ParamsConf
+from utils.config_utils import DataConf, ModelConf, ClassificationParamsConf
 
 
 def rb_preprocessing(
     data_conf: DataConf,
     model_conf: ModelConf,
-    params_conf: ParamsConf
+    params_conf: ClassificationParamsConf
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     transactions = pd.read_csv(os.path.join(data_conf.data_dir, 'rosbank', 'train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')

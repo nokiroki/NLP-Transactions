@@ -5,7 +5,8 @@ from torch import nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from models.common_layers import PositionalEncoding
-from models.next_token_classification import BaseModel
+from models.classification import BaseModel
+from utils.config_utils import LearningConf, ClassificationParamsConf
 
 
 class TransactionGRU(BaseModel):
@@ -19,20 +20,23 @@ class TransactionGRU(BaseModel):
         amnt_emb_size: int,
         emb_size: int,
         hidden_size: int,
+        output_dim: int,
         num_layers: int,
         dropout: float,
         lr: float,
-        is_perm: bool = False,
-        is_pe: bool = False,
-        output_dim: int = 344,
+        is_gc: bool,
+        is_perm: bool,
+        is_pe: bool,
         *args: Any,
         **kwargs: Any
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(output_dim, *args, **kwargs)
         assert emb_type in ('concat', 'tr2vec')
 
-        # if emb_type == 'concat':
-        #     assert mcc_emb_size + amnt_emb_size == emb_size
+        if emb_type == 'concat':
+            emb_size = mcc_emb_size + amnt_emb_size
+            if is_gc:
+                emb_size += (amnt_emb_size + 3 * mcc_emb_size)
 
         self.save_hyperparameters({
             'emb_type'          : emb_type,
@@ -42,37 +46,46 @@ class TransactionGRU(BaseModel):
             'amnt_emb_size'     : amnt_emb_size,
             'emb_size'          : emb_size,
             'hidden_size'       : hidden_size,
+            'output_dim'        : output_dim,
             'num_layers'        : num_layers,
             'dropout'           : dropout,
             'lr'                : lr,
+            'is_gc'             : is_gc,
             'is_perm'           : is_perm,
-            'is_pe'             : is_pe,
-            'output_dim'        : output_dim
+            'is_pe'             : is_pe
         })
 
-        self.is_perm = is_perm
-        self.lr = lr
+        self.mcc_embeddings     = nn.Embedding(
+            self.hparams['mcc_vocab_size'] + 1,
+            self.hparams['mcc_emb_size'],
+            padding_idx=0
+        )
+        self.amnt_embeddings    = nn.Embedding(
+            self.hparams['amnt_bins'] + 1,
+            self.hparams['amnt_emb_size'],
+            padding_idx=0)
 
-        self.mcc_embeddings     = nn.Embedding(mcc_vocab_size + 1, mcc_emb_size, padding_idx=0)
-        self.amnt_embeddings    = nn.Embedding(amnt_bins + 1, amnt_emb_size, padding_idx=0)
-
-        if emb_type == 'concat':
+        if self.hparams['emb_type'] == 'concat':
             self.emb_linear = nn.Identity()
         else:
-            self.emb_linear = nn.Linear(mcc_emb_size + amnt_emb_size, emb_size, bias=False)
+            self.emb_linear = nn.Linear(
+                self.hparams['mcc_embed_size'] + self.hparams['amnt_emb_size'],
+                self.hparams['emb_size'],
+                bias=False
+            )
 
-        self.pos_enc = PositionalEncoding(emb_size) if is_pe else nn.Identity()
+        self.pos_enc = PositionalEncoding(self.hparams['emb_size']) if self.hparams['is_pe'] else nn.Identity()
 
         self.rnn = nn.GRU(
-            emb_size,
-            hidden_size,
-            num_layers,
+            self.hparams['emb_size'],
+            self.hparams['hidden_size'],
+            self.hparams['num_layers'],
             bidirectional=True,
             batch_first=True,
-            dropout=dropout
+            dropout=self.hparams['dropout']
         )
 
-        self.predictor = nn.Linear(2 * hidden_size, output_dim)
+        self.predictor = nn.Linear(2 * self.hparams['hidden_size'], self.hparams['output_dim'])
 
 
     def set_embeddings(
@@ -107,7 +120,7 @@ class TransactionGRU(BaseModel):
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
         
-        if self.is_perm:
+        if self.hparams['is_perm']:
             perm = torch.randperm(embs.size(1))
             embs = embs[:, perm, :]
 
@@ -126,5 +139,5 @@ class TransactionGRU(BaseModel):
     
 
     def configure_optimizers(self) -> Any:
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams['lr'])
         return {'optimizer': optimizer}

@@ -29,8 +29,7 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.get('All_models', 'task').lower(),
         config.get('All_models', 'model_type').lower(),
         config.get('All_models', 'experiment_name'),
-        config.get('All_models', 'emb_weigths_name'),
-        config.getboolean('All_models', 'train_embedding')
+        config.get('All_models', 'emb_weigths_name')
     )
 
     conf_section = 'RNN' if model_conf.model_type == 'rnn' else 'Transformer'

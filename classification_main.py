@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models.churn_classification import TransactionGRU, Transformer
+from models.classification import TransactionGRU, Transformer
 from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from datamodules.preprocessing import data_preprocessing
@@ -44,7 +44,7 @@ if __name__ == '__main__':
             params_conf.mcc_vocab_size,
             params_conf.mcc_embed_size,
             params_conf.amnt_bins,
-            params_conf.amnt_bins,
+            params_conf.amnt_emb_size,
             params_conf.emb_size,
             params_conf.hidden_dim,
             params_conf.output_dim,
@@ -59,7 +59,7 @@ if __name__ == '__main__':
             params_conf.mcc_vocab_size,
             params_conf.mcc_embed_size,
             params_conf.amnt_bins,
-            params_conf.amnt_bins,
+            params_conf.amnt_emb_size,
             params_conf.emb_size,
             params_conf.hidden_dim,
             params_conf.output_dim,
@@ -83,7 +83,7 @@ if __name__ == '__main__':
         )
 
         early_stop_callback = EarlyStopping(
-            monitor='val_auroc',
+            monitor='val_auroc' if model_conf.task == 'classification' else 'val_accuracy',
             min_delta=1e-3,
             patience=4,
             verbose=False,
@@ -91,7 +91,7 @@ if __name__ == '__main__':
         )
 
         checkpoint = ModelCheckpoint(
-            monitor='val_auroc',
+            monitor='val_auroc' if model_conf.task == 'classification' else 'val_accuracy',
             mode='max',
             dirpath=os.path.join(data_conf.logging_dir, 'checkpoints', model_conf.experiment_name))
         
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 
         comet_logger = CometLogger(
             api_key=api_token,
-            project_name='NLP-transactions',
+            project_name='NLP-transactions-test',
             experiment_name=model_conf.experiment_name
         )
 
@@ -121,5 +121,6 @@ if __name__ == '__main__':
         model_best = TransactionGRU.load_from_checkpoint(checkpoint.best_model_path) \
                     if model_conf.model_type == 'rnn' else \
                     Transformer.load_from_checkpoint(checkpoint.best_model_path)
-        res = trainer.test(model_best, datamodule)[0]['test_auroc']
-        results.append(res)
+        trainer.test(model_best, datamodule)
+        # res = trainer.test(model_best, datamodule)[0]['test_auroc']
+        # results.append(res)

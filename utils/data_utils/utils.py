@@ -38,7 +38,7 @@ def global_context(
     time_step: int = 1,
     datetime_column: str = 'TRDATETIME',
     tr_amount_column: str = 'amount_rur',
-    tr_mcc_code_column: str = +'small_group'
+    tr_mcc_code_column: str = 'small_group'
 ) -> pd.DataFrame:
     start_time = transactions.iloc[0]['TRDATETIME']
     start_index = 0
