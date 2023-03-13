@@ -1,8 +1,5 @@
 import os
 
-import numpy as np
-import pandas as pd
-
 import torch
 
 from pytorch_lightning import Trainer
@@ -10,145 +7,83 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models.churn_classification import TransactionGRU, Transformer
+from models.classification import TransactionGRU, Transformer
 from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
-from utils.data_utils import split_data, global_context
+from datamodules.preprocessing import data_preprocessing
 from utils.config_utils import get_config_with_dirs
 
 
 if __name__ == '__main__':
-    config, (data_dir, logging_dir, emb_dir) = get_config_with_dirs('config.ini')
-    
-    # Чтение данных из конфига
-    model_type = config.get('Churn_classification', 'model_type').lower()
-    conf_section    = 'RNN' if model_type == 'rnn' else 'Transformer'
-    experiment_name         = config.get('All_models', 'experiment_name')
-    emb_weigths_name        = config.get('All_models', 'emb_weigths_name')
-    train_embeddings        = config.getboolean('All_models', 'train_embedding')
-
-    batch_size              = config.getint(conf_section, 'batch_size')
-    lr                      = config.getfloat(conf_section, 'lr')
-    epochs                  = config.getint(conf_section, 'epochs')
-    num_workers             = config.getint('All_models', 'num_workers')
-    n_experiments           = config.getint('All_models', 'n_experiments')
-
-    emb_type                = config.get(conf_section, 'emb_type')
-    mcc_vocab_size          = config.getint(conf_section, 'mcc_vocab_size')
-    mcc_embed_size          = config.getint(conf_section, 'mcc_emb_size')
-    amnt_bins               = config.getint(conf_section, 'amnt_bins')
-    amnt_emb_size           = config.getint(conf_section, 'amnt_emb_size')
-    emb_size                = config.getint(conf_section, 'emb_size')
-    layers                  = config.getint(conf_section, 'layers')
-    hidden_dim              = config.getint(conf_section, 'hidden_dim')
-    dropout                 = config.getfloat(conf_section, 'dropout')
-    permutation             = config.getboolean(conf_section, 'permutation')
-    pe                      = config.getboolean(conf_section, 'pe')
-    use_global_features     = config.getboolean('All_models', 'use_global_features')
-    global_features_step    = config.getint('All_models', 'global_features_step')
-    m_last                  = config.getint('All_models', 'm_last')
-    m_period                = config.getint('All_models', 'm_period')
-    period                  = config.get('All_models', 'period')
-    num_heads               = config.getint(conf_section, 'n_heads') if model_type == 'transformer' else None
+    (data_conf, model_conf, learning_conf, params_conf), _ = get_config_with_dirs('config.ini')
 
     # Необходим файл с токеном для логгирование на comet
     with open('api_token.txt') as f:
         api_token = f.read()
-    
-    # Чтения файла росбанка
-    transactions = pd.read_csv(os.path.join(data_dir, 'rosbank', 'train.csv'))
-    transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
-    transactions = transactions.sort_values(by=['TRDATETIME'])
-    transactions['hour'] = transactions.TRDATETIME.dt.hour
-    transactions['day'] = transactions.TRDATETIME.dt.day
-    transactions['day_of_week'] = transactions.TRDATETIME.dt.day_of_week
-    transactions['month'] = transactions.TRDATETIME.dt.month
-    transactions = transactions.rename(columns={'cl_id':'client_id', 'MCC':'small_group', 'amount':'amount_rur'})
 
-    sequences = transactions.groupby('client_id').agg({
-        'small_group': lambda x: x.tolist(),
-        'amount_rur':  lambda x: x.tolist(),
-        'hour':        lambda x: x.tolist(), 
-        'day':         lambda x: x.tolist(), 
-        'day_of_week': lambda x: x.tolist(), 
-        'month':       lambda x: x.tolist(), 
-        'target_flag': lambda x: x.tolist()[0],
-    })
-    if use_global_features:
-        transactions = global_context(transactions, global_features_step)
-        sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
-            'average_amt': lambda x: x.tolist(),
-            'top_mcc_1': lambda x: x.tolist(),
-            'top_mcc_2': lambda x: x.tolist(),
-            'top_mcc_3': lambda x: x.tolist()
-        })), axis=1)
-
-
-    train_sequences, val_sequences, test_sequences = split_data(sequences, use_train_ratio=1.)
-    mcc2id = dict(zip(
-        transactions.small_group.unique(), 
-        np.arange(transactions.small_group.nunique()) + 1
-    ))
-
+    train_sequences, val_sequences, test_sequences = data_preprocessing(
+        data_conf,
+        model_conf,
+        params_conf
+    )
 
     results = list()
+    
     #TODO сделать через интерфейс подгрузку весов
-    weights = torch.load(os.path.join(
-        emb_dir,
-        'embedding_weights',
-        emb_weigths_name
-    ))
+    if params_conf.pretrained_embed:
+        weights = torch.load(os.path.join(
+            data_conf.emb_dir,
+            'embedding_weights',
+            model_conf.emb_weights_name
+        ))
     
     # Цикл обучения для оценки uncertainty
-    for i in range(n_experiments):
+    for i in range(learning_conf.n_experiments):
         model = TransactionGRU(
-            emb_type,
-            mcc_vocab_size,
-            mcc_embed_size,
-            amnt_bins,
-            amnt_emb_size,
-            emb_size,
-            hidden_dim,
-            layers,
-            dropout,
-            lr,
-            permutation,
-            pe
-        ) if model_type == 'rnn' else \
-        Transformer(
-            emb_type,
-            mcc_vocab_size,
-            mcc_embed_size,
-            amnt_bins,
-            amnt_emb_size,
-            emb_size,
-            hidden_dim,
-            layers,
-            dropout,
-            lr,
-            num_heads,
-            permutation,
-            pe   
+            params_conf.emb_type,
+            params_conf.mcc_vocab_size,
+            params_conf.mcc_embed_size,
+            params_conf.amnt_bins,
+            params_conf.amnt_emb_size,
+            params_conf.emb_size,
+            params_conf.hidden_dim,
+            params_conf.output_dim,
+            params_conf.layers,
+            params_conf.dropout,
+            learning_conf.lr,
+            params_conf.use_global_features,
+            params_conf.permutation,
+            params_conf.pe
+        ) if model_conf.model_type == 'rnn' else Transformer(
+            params_conf.emb_type,
+            params_conf.mcc_vocab_size,
+            params_conf.mcc_embed_size,
+            params_conf.amnt_bins,
+            params_conf.amnt_emb_size,
+            params_conf.emb_size,
+            params_conf.hidden_dim,
+            params_conf.output_dim,
+            params_conf.layers,
+            params_conf.dropout,
+            learning_conf.lr,
+            params_conf.num_heads,
+            params_conf.use_global_features,
+            params_conf.permutation,
+            params_conf.pe  
         )
 
         model.set_embeddings(weights['mccs'], weights['amnts'])
 
         datamodule = TransactionRNNDataModule(
-            batch_size,
             train_sequences,
             val_sequences,
             test_sequences,
-            mcc2id,
-            amnt_bins,
-            is_global_features=use_global_features,
-            m_last=m_last,
-            m_period=m_period,
-            period=period,
-            num_workers=num_workers,
+            params_conf,
+            learning_conf
         )
 
         early_stop_callback = EarlyStopping(
-            monitor='val_auroc',
+            monitor='val_auroc' if model_conf.task == 'classification' else 'val_accuracy',
             min_delta=1e-3,
             patience=4,
             verbose=False,
@@ -156,19 +91,19 @@ if __name__ == '__main__':
         )
 
         checkpoint = ModelCheckpoint(
-            monitor='val_auroc',
+            monitor='val_auroc' if model_conf.task == 'classification' else 'val_accuracy',
             mode='max',
-            dirpath=os.path.join(logging_dir, 'checkpoints', experiment_name))
+            dirpath=os.path.join(data_conf.logging_dir, 'checkpoints', model_conf.experiment_name))
         
-        if train_embeddings:
+        if params_conf.train_embed:
             callbacks = [checkpoint, early_stop_callback, UnfreezeEmbeddings()]
         else:
             callbacks = [checkpoint, early_stop_callback, FreezeEmbeddings()]
 
         comet_logger = CometLogger(
             api_key=api_token,
-            project_name='NLP-transactions',
-            experiment_name=experiment_name
+            project_name='NLP-transactions-test',
+            experiment_name=model_conf.experiment_name
         )
 
         trainer = Trainer(
@@ -178,13 +113,14 @@ if __name__ == '__main__':
             logger=comet_logger,
             deterministic=True,
             callbacks=callbacks,
-            max_epochs=epochs,
+            max_epochs=learning_conf.epochs,
             auto_lr_find=True
         )
 
         trainer.fit(model, datamodule=datamodule)
         model_best = TransactionGRU.load_from_checkpoint(checkpoint.best_model_path) \
-                    if model_type == 'rnn' else \
+                    if model_conf.model_type == 'rnn' else \
                     Transformer.load_from_checkpoint(checkpoint.best_model_path)
-        res = trainer.test(model_best, datamodule)[0]['test_auroc']
-        results.append(res)
+        trainer.test(model_best, datamodule)
+        # res = trainer.test(model_best, datamodule)[0]['test_auroc']
+        # results.append(res)

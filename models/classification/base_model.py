@@ -7,10 +7,15 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import STEP_OUTPUT, EPOCH_OUTPUT
 
-from utils.metrics import auroc
+from utils.metrics import auroc, accuracy, f1
+from utils.config_utils import LearningConf, ClassificationParamsConf
 
 
 class BaseModel(pl.LightningModule, ABC):
+
+    def __init__(self, output_dim: int, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.output_dim = output_dim
 
     @abstractmethod
     def forward(
@@ -41,38 +46,55 @@ class BaseModel(pl.LightningModule, ABC):
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> STEP_OUTPUT:
         mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
-        loss = F.binary_cross_entropy_with_logits(logits, labels.float())
+        loss = F.binary_cross_entropy_with_logits(logits, labels.float()) if self.output_dim == 1 else \
+                F.cross_entropy(logits, labels)
         self.log('train_loss', loss)
-        return {'loss': loss, 'probs': torch.sigmoid(logits), 'labels': labels}
+        return {
+            'loss': loss,
+            'probs': torch.sigmoid(logits) if self.output_dim == 1 else torch.argmax(logits, dim=1),
+            'labels': labels
+        }
     
 
     def training_epoch_end(self, outputs: torch.Tensor) -> Optional[STEP_OUTPUT]:
         probs  = torch.cat([o['probs']  for o in outputs])
         labels = torch.cat([o['labels'] for o in outputs])
-        self.log('train_auroc', auroc(probs, labels), prog_bar=True)
+        if self.output_dim == 1:
+            self.log('train_auroc', auroc(probs, labels), prog_bar=True)
+        else:
+            self.log('train_accuracy', accuracy(probs, labels), prog_bar=True)
+            self.log('train_f1', f1(probs, labels), prog_bar=True)
     
 
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
-        probs = torch.sigmoid(logits)
+        probs = torch.sigmoid(logits) if self.output_dim == 1 else torch.argmax(logits, dim=1)
         return probs, labels
 
 
     def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         probs, labels = zip(*outputs)
         probs, labels = torch.cat(probs), torch.cat(labels)
-        self.log('val_auroc', auroc(probs, labels), prog_bar=True)
+        if self.output_dim == 1:
+            self.log('val_auroc', auroc(probs, labels), prog_bar=True)
+        else:
+            self.log('val_accuracy', accuracy(probs, labels), prog_bar=True)
+            self.log('val_f1', f1(probs, labels), prog_bar=True)
 
 
     def test_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
-        probs = torch.sigmoid(logits)
+        probs = torch.sigmoid(logits) if self.output_dim == 1 else torch.argmax(logits, dim=1)
         return probs, labels
     
 
     def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         probs, labels = zip(*outputs)
         probs, labels = torch.cat(probs), torch.cat(labels)
-        self.log('test_auroc', auroc(probs, labels))
+        if self.output_dim == 1:
+            self.log('test_auroc', auroc(probs, labels), prog_bar=True)
+        else:
+            self.log('test_accuracy', accuracy(probs, labels), prog_bar=True)
+            self.log('test_f1', f1(probs, labels), prog_bar=True)

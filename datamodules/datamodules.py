@@ -11,6 +11,7 @@ from torch.nn.utils.rnn import pad_sequence
 
 import pytorch_lightning as pl
 
+from utils.config_utils import ClassificationParamsConf, LearningConf
 from .datasets import T2VDataset, TransactionLabelDataset
 
 
@@ -30,7 +31,6 @@ class TransactionDataModule(pl.LightningDataModule):
         batch_size: int,
         train_sequences: pd.DataFrame,
         val_sequences: pd.DataFrame,
-        mcc2id: Dict[int, int],
         discretizer_bins: int,
         num_workers: int = 1
     ):
@@ -42,14 +42,14 @@ class TransactionDataModule(pl.LightningDataModule):
         discretizer = fit_discretizer(discretizer_bins, train_sequences[1])
 
         mcc_codes, amnts = train_sequences
-        mcc_seqs =  [torch.LongTensor([mcc2id[code] for code in sequence]) for sequence in mcc_codes]
+        mcc_seqs =  [torch.LongTensor(sequence) for sequence in mcc_codes]
         amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(sequence).reshape(-1, 1))).view(-1) + 1 for sequence in amnts]
-        self.train_ds = T2VDataset(mcc_seqs, amnt_seqs, mcc2id, self.window_size)
+        self.train_ds = T2VDataset(mcc_seqs, amnt_seqs, self.window_size)
 
         mcc_codes, amnts = val_sequences
-        mcc_seqs =  [torch.LongTensor([mcc2id[code] for code in sequence]) for sequence in mcc_codes]
+        mcc_seqs =  [torch.LongTensor(sequence) for sequence in mcc_codes]
         amnt_seqs = [torch.LongTensor(discretizer.transform(np.array(sequence).reshape(-1, 1))).view(-1) + 1 for sequence in amnts]
-        self.val_ds = T2VDataset(mcc_seqs, amnt_seqs, mcc2id, self.window_size)
+        self.val_ds = T2VDataset(mcc_seqs, amnt_seqs, self.window_size)
     
 
     def train_dataloader(self):
@@ -92,31 +92,24 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        batch_size: int, 
         train_sequences: pd.DataFrame,
         val_sequences: pd.DataFrame,
         test_sequences: pd.DataFrame,
-        mcc2id: Dict[int, int],
-        discretizer_bins: int,
-        is_global_features: bool = True,
-        m_last: int = 100,
-        m_period: int = 0,
-        period: str = 'day',
-        num_workers: int = 1
+        params_conf: ClassificationParamsConf,
+        learning_conf: LearningConf
     ) -> None:
         super().__init__()
-        self.batch_size = batch_size
-        self.num_workers = num_workers
+        self.batch_size = learning_conf.batch_size
+        self.num_workers = learning_conf.num_workers
         self.train_sequences = train_sequences
         self.val_sequences = val_sequences
         self.test_sequences = test_sequences
-        self.mcc2id = mcc2id
-        self.is_global_features = is_global_features
-        self.m_last = m_last
-        self.m_period = m_period
-        self.period = period
+        self.is_global_features = params_conf.use_global_features
+        self.m_last = params_conf.m_last
+        self.m_period = params_conf.m_period
+        self.period = params_conf.period
 
-        self.discretizer = fit_discretizer(discretizer_bins, train_sequences['amount_rur'])
+        self.discretizer = fit_discretizer(params_conf.amnt_bins, train_sequences['amount_rur'])
         
         self.train_ds   = self.create_dataset(train_sequences)
         self.val_ds     = self.create_dataset(val_sequences)
@@ -154,7 +147,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
                 cur_user_period_subset = cur_user_first[cur_user_first['period'] == last_period].iloc[-self.m_period:, :].copy()
                 cur_user_subset        = pd.concat([cur_user_period_subset, cur_user_subset], axis=0)
                 
-            mcc_seqs_processed.append(torch.LongTensor([self.mcc2id[code] for code in cur_user_subset['mcc']]))
+            mcc_seqs_processed.append(torch.LongTensor(cur_user_subset['mcc']))
             amnt_seqs_processed.append(torch.LongTensor(self.discretizer.transform(np.array(cur_user_subset['amnt']).reshape(-1, 1))).view(-1) + 1)
 
         return mcc_seqs_processed, amnt_seqs_processed
@@ -221,9 +214,9 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
         avg_amt = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in avg_amt]
         top_mcc_seqs = [torch.stack((
-                torch.LongTensor([self.mcc2id[code] for code in seq_1]),
-                torch.LongTensor([self.mcc2id[code] for code in seq_2]),
-                torch.LongTensor([self.mcc2id[code] for code in seq_3])
+                torch.LongTensor(seq_1),
+                torch.LongTensor(seq_2),
+                torch.LongTensor(seq_3)
             ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
         ]
 

@@ -4,7 +4,8 @@ import torch
 from torch import nn
 
 from models.common_layers import PositionalEncoding
-from models.next_token_classification import BaseModel
+from models.classification import BaseModel
+from utils.config_utils import LearningConf, ClassificationParamsConf
 
 
 class Transformer(BaseModel):
@@ -18,17 +19,23 @@ class Transformer(BaseModel):
         amnt_emb_size: int,
         emb_size: int,
         hidden_size: int,
+        output_dim: int,
         num_layers: int,
         dropout: float,
         lr: float,
-        n_heads: int,
-        is_perm: bool = False,
-        is_pe: bool = False,
-        output_dim: int = 344,
+        num_heads: int,
+        is_gc: bool,
+        is_perm: bool,
+        is_pe: bool,
         *args: Any,
         **kwargs: Any
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__(output_dim, *args, **kwargs)
+
+        if emb_type == 'concat':
+            emb_size = mcc_emb_size + amnt_emb_size
+            if is_gc:
+                emb_size += (amnt_emb_size + 3 * mcc_emb_size)
 
         self.save_hyperparameters({
             'emb_type'          : emb_type,
@@ -38,31 +45,49 @@ class Transformer(BaseModel):
             'amnt_emb_size'     : amnt_emb_size,
             'emb_size'          : emb_size,
             'hidden_size'       : hidden_size,
+            'output_dim'        : output_dim,
             'num_layers'        : num_layers,
             'dropout'           : dropout,
             'lr'                : lr,
-            'n_heads'           : n_heads,
+            'num_heads'         : num_heads,
+            'is_gc'             : is_gc,
             'is_perm'           : is_perm,
-            'is_pe'             : is_pe,
-            'output_dim'        : output_dim
+            'is_pe'             : is_pe
         })
 
-        self.mcc_embeddings     = nn.Embedding(mcc_vocab_size + 1, mcc_emb_size, padding_idx=0)
-        self.amnt_embeddings    = nn.Embedding(amnt_bins + 1, amnt_emb_size, padding_idx=0)
-
-        if emb_type == 'concat':
-            self.emb_linear = nn.Identity()
-        else:
-            self.emb_linear = nn.Linear(mcc_emb_size + amnt_emb_size, emb_size)
-
-        self.pos_enc = PositionalEncoding(emb_size) if is_pe else nn.Identity()
-
-        self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(emb_size, n_heads, dropout=dropout),
-            num_layers
+        self.mcc_embeddings     = nn.Embedding(
+            self.hparams['mcc_vocab_size'] + 1,
+            self.hparams['mcc_emb_size'],
+            padding_idx=0
+        )
+        self.amnt_embeddings    = nn.Embedding(
+            self.hparams['amnt_bins'] + 1,
+            self.hparams['amnt_emb_size'],
+            padding_idx=0
         )
 
-        self.predictor = nn.Linear(emb_size, output_dim)
+        if self.hparams['emb_type'] == 'concat':
+            self.emb_linear = nn.Identity()
+        else:
+            self.emb_linear = nn.Linear(
+                self.hparams['mcc_emb_size'] + self.hparams['amnt_emb_size'],
+                self.hparams['emb_size']
+            )
+
+        self.pos_enc = PositionalEncoding(
+            self.hparams['emb_size']
+        ) if self.hparams['is_pe'] else nn.Identity()
+
+        self.encoder = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                self.hparams['emb_size'],
+                self.hparams['num_heads'],
+                dropout=self.hparams['dropout']
+            ),
+            self.hparams['num_layers']
+        )
+
+        self.predictor = nn.Linear(self.hparams['emb_size'], self.hparams['output_dim'])
 
 
     def set_embeddings(
