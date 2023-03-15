@@ -132,9 +132,8 @@ class TransactionGRU(BaseModel):
         )
         hidden, _ = self.rnn(packed_embs)
         hidden, _ = pad_packed_sequence(hidden, batch_first=True)
-        features = self._mean_pooling(hidden, lengths)
 
-        logits = self.predictor(features).squeeze()
+        logits = self.predictor(hidden).squeeze()
         return logits
     
 

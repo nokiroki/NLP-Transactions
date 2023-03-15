@@ -128,9 +128,7 @@ class Transformer(BaseModel):
 
         hidden = self.encoder(embs)
 
-        features = self._mean_pooling(hidden, lengths)
-
-        logits = self.predictor(features).squeeze()
+        logits = self.predictor(hidden).squeeze()
         return logits
     
     def configure_optimizers(self):

@@ -10,3 +10,24 @@ def accuracy(preds: torch.Tensor, labels: torch.Tensor) -> float:
 
 def f1(preds: torch.Tensor, labels: torch.Tensor) -> float:
     return f1_score(labels.detach().cpu().numpy(), preds.detach().cpu().numpy(), average='weighted')
+
+
+class TopNAccuracy():
+  def __init__(self, N, compute_on_step=True, dist_sync_on_step=False, process_group=None):
+    self.N = N
+    self.got_right = 0
+    self.total = 0
+
+  def update(self, logits, target):
+    args_sorted = torch.argsort(logits, descending=True)
+    self.total += len(target)
+    for i, row in enumerate(args_sorted):
+      if target[i] in row[:self.N]:
+        self.got_right += 1
+  
+  def compute(self):
+    return self.got_right / self.total
+
+  def reset(self):
+        # ...
+        pass
