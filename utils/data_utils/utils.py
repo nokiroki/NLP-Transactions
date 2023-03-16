@@ -91,14 +91,11 @@ def mask_drop_save_tockens(
     save_tockens: List[int]
 ) -> torch.Tensor:
 
-rand_mask = rand_mask.copy()
-for token in save_tokens:
-    rand_mask *= (batch != token)
+    rand_mask = rand_mask.copy()
+    for token in save_tockens:
+        rand_mask *= (batch != token)
 
-return rand_mask
-
-
-
+    return rand_mask
 
 
 def masking_one_batch(
@@ -107,12 +104,12 @@ def masking_one_batch(
     mask_token: int,
     save_tockens: List[int]
 
-) -> torch.Tensor, torch.Tensor:
+) -> Tuple[torch.Tensor, torch.Tensor]:
 
     mask_for_batch = mask_drop_save_tockens(batch, random_mask, save_tockens)  
     new_bacth = batch.mask_fill_(mask_for_batch, mask_token)  
 
-    return batch, mask_for_batch
+    return new_bacth, mask_for_batch
 
 
 

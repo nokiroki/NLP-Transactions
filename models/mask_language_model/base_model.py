@@ -56,7 +56,7 @@ class BaseModel(pl.LightningModule, ABC):
         mcc_seqs, amnt_seqs, _, lengths, avg_amnt, top_mcc = batch
 
 
-        new_batches, rand_mask_ids = masking_all_batches(
+        new_batches, rand_masks = masking_all_batches(
             list_changing_batches=[mcc_seqs, amnt_seqs], 
             mask_tokens = [self.mcc_vocab_size + 1, self.mcc_amnt_seqs + 1],
             masked_rate = 0.15,
@@ -66,14 +66,22 @@ class BaseModel(pl.LightningModule, ABC):
         mcc_seqs, amnt_seqs = new_batches
 
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
-        
-        loss = F.cross_entropy(logits.view(-1, self.output_dim,), mcc_seqs.view(-1))
-        
+        logits = logits.view(-1, self.output_dim)
+        labels = mcc_seqs.view(-1)
+        preds = torch.argmax(logits, dim=1)
+
+        mask_idx= (rand_masks[0].flatten()).nonzero().view(-1) 
+
+        loss = F.cross_entropy(logits[mask_idx], labels[mask_idx])
         self.log('train_loss', loss)
+        
+        labels_masked = labels[mask_idx]
+        preds_masked = preds[mask_idx]
+
         return {
             'loss': loss,
-            'preds': torch.argmax(logits, dim=1),
-            'labels': _
+            'preds': preds_masked,
+            'labels': labels_masked
         }
     
 
@@ -88,7 +96,7 @@ class BaseModel(pl.LightningModule, ABC):
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
 
-        new_batches, rand_mask_ids = masking_all_batches(
+        new_batches, rand_masks = masking_all_batches(
             list_changing_batches=[mcc_seqs, amnt_seqs], 
             mask_tokens = [self.mcc_vocab_size + 1, self.mcc_amnt_seqs + 1],
             masked_rate = 0.15,
@@ -97,10 +105,18 @@ class BaseModel(pl.LightningModule, ABC):
 
         mcc_seqs, amnt_seqs = new_batches
 
-
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
-        preds = torch.argmax(logits, dim=1)
-        return preds, labels
+        logits = logits.view(-1, self.output_dim)
+        labels = mcc_seqs.view(-1)
+        mask_idx= (rand_masks[0].flatten()).nonzero().view(-1) 
+
+        loss = F.cross_entropy(logits[mask_idx], labels[mask_idx])
+        self.log('val_loss', loss)
+        
+        labels_masked = labels[mask_idx]
+        preds_masked = torch.argmax(logits[mask_idx], dim=1)
+
+        return preds_masked, labels_masked
 
 
     def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
@@ -113,7 +129,7 @@ class BaseModel(pl.LightningModule, ABC):
     def test_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
         mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
 
-        new_batches, rand_mask_ids = masking_all_batches(
+        new_batches, rand_masks = masking_all_batches(
             list_changing_batches=[mcc_seqs, amnt_seqs], 
             mask_tokens = [self.mcc_vocab_size + 1, self.mcc_amnt_seqs + 1],
             masked_rate = 0.15,
@@ -123,8 +139,15 @@ class BaseModel(pl.LightningModule, ABC):
         mcc_seqs, amnt_seqs = new_batches
 
         logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
+        logits = logits.view(-1, self.output_dim)
         preds = torch.argmax(logits, dim=1)
-        return preds, labels
+        labels = mcc_seqs.view(-1)
+
+        mask_idx= (rand_masks[0].flatten()).nonzero().view(-1)   
+        labels_masked = labels[mask_idx]
+        preds_masked = preds[mask_idx]
+
+        return preds_masked, labels_masked
     
 
     def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:

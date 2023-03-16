@@ -29,14 +29,6 @@ if __name__ == '__main__':
 
     results = list()
     
-    #TODO сделать через интерфейс подгрузку весов
-    if params_conf.pretrained_embed:
-        weights = torch.load(os.path.join(
-            data_conf.emb_dir,
-            'embedding_weights',
-            model_conf.emb_weights_name
-        ))
-    
     # Цикл обучения для оценки uncertainty
     for i in range(learning_conf.n_experiments):
         model = TransactionGRU(
@@ -72,7 +64,16 @@ if __name__ == '__main__':
             params_conf.pe  
         )
 
-        model.set_embeddings(weights['mccs'], weights['amnts'])
+        #TODO сделать через интерфейс подгрузку весов
+        if params_conf.pretrained_embed:
+            weights = torch.load(os.path.join(
+                data_conf.emb_dir,
+                'embedding_weights',
+                model_conf.emb_weights_name
+            ))
+            model.set_embeddings(weights['mccs'], weights['amnts'])
+
+        
 
         datamodule = TransactionRNNDataModule(
             train_sequences,
@@ -83,15 +84,15 @@ if __name__ == '__main__':
         )
 
         early_stop_callback = EarlyStopping(
-            monitor='val_auroc' if model_conf.output_dim == 1 else 'val_accuracy',
+            monitor='val_auroc' if params_conf.output_dim == 1 else 'val_accuracy',
             min_delta=1e-3,
-            patience=4,
+            patience=12,
             verbose=False,
             mode='max'
         )
 
         checkpoint = ModelCheckpoint(
-            monitor='val_auroc' if model_conf.output_dim == 1 else 'val_accuracy',
+            monitor='val_auroc' if params_conf.output_dim == 1 else 'val_accuracy',
             mode='max',
             dirpath=os.path.join(data_conf.logging_dir, 'checkpoints', model_conf.experiment_name))
         
@@ -102,7 +103,7 @@ if __name__ == '__main__':
 
         comet_logger = CometLogger(
             api_key=api_token,
-            project_name='NLP-transactions-test',
+            project_name='NLP-transactions-mlm',
             experiment_name=model_conf.experiment_name
         )
 

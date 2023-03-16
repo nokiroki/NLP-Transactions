@@ -13,7 +13,7 @@ def f1(preds: torch.Tensor, labels: torch.Tensor) -> float:
 
 
 class TopNAccuracy():
-  def __init__(self, N, compute_on_step=True, dist_sync_on_step=False, process_group=None):
+  def __init__(self, N):
     self.N = N
     self.got_right = 0
     self.total = 0
@@ -27,7 +27,3 @@ class TopNAccuracy():
   
   def compute(self):
     return self.got_right / self.total
-
-  def reset(self):
-        # ...
-        pass
