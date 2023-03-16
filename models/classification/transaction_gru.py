@@ -55,12 +55,12 @@ class TransactionGRU(BaseModel):
             'is_pe'             : is_pe
         })
 
-        self.mcc_embeddings     = nn.Embedding(
+        self.mcc_embeddings = nn.Embedding(
             self.hparams['mcc_vocab_size'] + 1,
             self.hparams['mcc_emb_size'],
             padding_idx=0
         )
-        self.amnt_embeddings    = nn.Embedding(
+        self.amnt_embeddings = nn.Embedding(
             self.hparams['amnt_bins'] + 1,
             self.hparams['amnt_emb_size'],
             padding_idx=0)
