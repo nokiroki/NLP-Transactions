@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from utils.data_utils import global_context, split_data
+from utils.data_utils import global_context, split_data, weekends
 from utils.config_utils import DataConf, ModelConf, ClassificationParamsConf
 
 
@@ -45,6 +45,12 @@ def rb_preprocessing(
             'top_mcc_1':    lambda x: x.tolist(),
             'top_mcc_2':    lambda x: x.tolist(),
             'top_mcc_3':    lambda x: x.tolist()
+        })), axis=1)
+
+    if params_conf.is_weekends:
+        transactions = weekends(transactions)
+        sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
+            'weekends': lambda x: x.tolist()
         })), axis=1)
 
     # Если задача mcc, то вручную считаем output_dim

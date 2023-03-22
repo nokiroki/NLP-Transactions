@@ -102,8 +102,8 @@ if __name__ == '__main__':
 
         comet_logger = CometLogger(
             api_key=api_token,
-            project_name='NLP-transactions-test',
-            experiment_name=model_conf.experiment_name
+            project_name='NLP-transactions-next-token',
+            experiment_name=f'{model_conf.experiment_name}_{i}'
         )
 
         trainer = Trainer(

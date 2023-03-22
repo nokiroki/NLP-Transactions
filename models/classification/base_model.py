@@ -60,10 +60,10 @@ class BaseModel(pl.LightningModule, ABC):
         probs  = torch.cat([o['probs']  for o in outputs])
         labels = torch.cat([o['labels'] for o in outputs])
         if self.output_dim == 1:
-            self.log('train_auroc', auroc(probs, labels), prog_bar=True)
+            self.log('train_auroc', auroc(probs, labels))
         else:
-            self.log('train_accuracy', accuracy(probs, labels), prog_bar=True)
-            self.log('train_f1', f1(probs, labels), prog_bar=True)
+            self.log('train_accuracy', accuracy(probs, labels))
+            self.log('train_f1', f1(probs, labels))
     
 
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
@@ -79,7 +79,7 @@ class BaseModel(pl.LightningModule, ABC):
         if self.output_dim == 1:
             self.log('val_auroc', auroc(probs, labels), prog_bar=True)
         else:
-            self.log('val_accuracy', accuracy(probs, labels), prog_bar=True)
+            self.log('val_accuracy', accuracy(probs, labels))
             self.log('val_f1', f1(probs, labels), prog_bar=True)
 
 
