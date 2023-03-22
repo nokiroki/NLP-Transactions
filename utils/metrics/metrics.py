@@ -11,7 +11,7 @@ def accuracy(preds: torch.Tensor, labels: torch.Tensor) -> float:
 def f1(preds: torch.Tensor, labels: torch.Tensor) -> float:
     return f1_score(labels.detach().cpu().numpy(), preds.detach().cpu().numpy(), average='weighted')
 
-
+# TO DO
 class TopNAccuracy():
   def __init__(self, N):
     self.N = N
