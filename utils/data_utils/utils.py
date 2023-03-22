@@ -90,12 +90,15 @@ def mask_drop_save_tockens(
     random_mask: torch.Tensor,
     save_tockens: List[int]
 ) -> torch.Tensor:
+    device = batch.device 
 
-    rand_mask = rand_mask.copy()
+    batch = batch.cpu()
+
+    random_mask = random_mask.clone()
     for token in save_tockens:
-        rand_mask *= (batch != token)
+        random_mask *= (batch != token)
 
-    return rand_mask
+    return random_mask.to(device)
 
 
 def masking_one_batch(
@@ -107,7 +110,7 @@ def masking_one_batch(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
 
     mask_for_batch = mask_drop_save_tockens(batch, random_mask, save_tockens)  
-    new_bacth = batch.mask_fill_(mask_for_batch, mask_token)  
+    new_bacth = batch.masked_fill_(mask_for_batch, mask_token)  
 
     return new_bacth, mask_for_batch
 
@@ -129,10 +132,10 @@ def masking_all_batches(
 
     for idx_batch, batch in enumerate(list_changing_batches):
 
-        new_batch, mask_for_batch = masking_one_batch(batch, rand_mask, mask_tokens[idx_batch], save_tokens[idx_batch])
-
-        rand_masks_per_batch.append(mask_for_batch)
+        new_batch, mask_for_batch = masking_one_batch(batch, rand_mask, mask_tokens[idx_batch], 
+                                                      save_tokens[idx_batch])
         new_batches.append(new_batch)
+        rand_masks_per_batch.append(mask_for_batch)
 
     return new_batches, rand_masks_per_batch
 

@@ -30,7 +30,7 @@ class Transformer(BaseModel):
         *args: Any,
         **kwargs: Any
     ) -> None:
-        super().__init__(output_dim, *args, **kwargs)
+        super().__init__(output_dim, mcc_vocab_size, amnt_bins, *args, **kwargs)
 
         if emb_type == 'concat':
             emb_size = mcc_emb_size + amnt_emb_size

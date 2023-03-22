@@ -7,7 +7,7 @@ from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import ModelCheckpoint
 
-from models.classification import TransactionGRU, Transformer
+from models.mask_language_model import TransactionGRU, Transformer
 from models.callbacks import FreezeEmbeddings, UnfreezeEmbeddings
 from datamodules import TransactionRNNDataModule
 from datamodules.preprocessing import data_preprocessing
