@@ -132,8 +132,13 @@ def masking_all_batches(
 
     for idx_batch, batch in enumerate(list_changing_batches):
 
-        new_batch, mask_for_batch = masking_one_batch(batch, rand_mask, mask_tokens[idx_batch], 
-                                                      save_tokens[idx_batch])
+        new_batch, mask_for_batch = masking_one_batch(
+            batch, 
+            rand_mask, 
+            mask_tokens[idx_batch], 
+            save_tokens[idx_batch]
+        )
+        
         new_batches.append(new_batch)
         rand_masks_per_batch.append(mask_for_batch)
 

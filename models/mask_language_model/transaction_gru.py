@@ -30,7 +30,7 @@ class TransactionGRU(BaseModel):
         *args: Any,
         **kwargs: Any
     ) -> None:
-        super().__init__(output_dim, output_dim, mcc_vocab_size, amnt_bins, *args, **kwargs)
+        super().__init__(output_dim, mcc_vocab_size, amnt_bins, *args, **kwargs)
         assert emb_type in ('concat', 'tr2vec')
 
         if emb_type == 'concat':
