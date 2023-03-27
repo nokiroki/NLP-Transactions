@@ -1,4 +1,7 @@
 from typing import Iterable, Optional, Dict, Tuple
+from datetime import timedelta
+
+from tqdm.auto import tqdm
 
 import numpy as np
 import pandas as pd
@@ -77,3 +80,34 @@ class TransactionLabelDataset(Dataset):
     
     def __len__(self) -> int:
         return len(self.labels)
+
+
+class DayWiseDataset(Dataset):
+
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        time_step: int = 1,
+        datetime_column: str = 'TRDATETIME'
+    ) -> None:
+        data['gc_id'] = 0
+
+        start_time = data.iloc[0][datetime_column]
+        start_index = 0
+        gc_id = 0
+        for i in tqdm(range(data.shape[0])):
+            curr_time = data.iloc[i][datetime_column]
+            if data.iloc[i][datetime_column] > (start_time + timedelta(days=time_step)) \
+                    or i == (data.shape[0] - 1):
+                data.iloc[start_index:i]['gc_id'] = gc_id
+                gc_id += 1
+                start_time = curr_time
+                start_index = i
+        
+        self.data = data
+
+    def __getitem__(self, index) -> pd.DataFrame:
+        return self.data[self.data['gc_id'] == index]
+    
+    def __len__(self) -> int:
+        return self.data.iloc[-1]['gc_id'] + 1

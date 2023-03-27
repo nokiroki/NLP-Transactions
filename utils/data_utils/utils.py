@@ -41,7 +41,7 @@ def global_context(
     tr_amount_column: str = 'amount_rur',
     tr_mcc_code_column: str = 'small_group'
 ) -> pd.DataFrame:
-    start_time = transactions.iloc[0]['TRDATETIME']
+    start_time = transactions.iloc[0][datetime_column]
     start_index = 0
 
     mean_tr = np.zeros(transactions.shape[0])
@@ -49,10 +49,12 @@ def global_context(
 
     for i in tqdm(range(transactions.shape[0])):
         curr_time = transactions.iloc[i][datetime_column]
-        if transactions.iloc[i][datetime_column] > (start_time + timedelta(days=time_step)) or i == (transactions.shape[0] - 1):
+        if transactions.iloc[i][datetime_column] > (start_time + timedelta(days=time_step)) \
+                or i == (transactions.shape[0] - 1):
             subsample = transactions.iloc[start_index:i]
             mean_tr_smpl = subsample[tr_amount_column].mean()
-            top_mcc_smpl = subsample.groupby(tr_mcc_code_column)[tr_mcc_code_column].count().sort_values(ascending=False).iloc[:3].index
+            top_mcc_smpl = subsample.groupby(tr_mcc_code_column)[tr_mcc_code_column] \
+                            .count().sort_values(ascending=False).iloc[:3].index
             if len(top_mcc_smpl) < 3:
                 border_index = 3 - len(top_mcc_smpl)
                 top_mcc_smpl = np.array(top_mcc_smpl)

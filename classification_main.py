@@ -72,6 +72,7 @@ if __name__ == '__main__':
             params_conf.pe  
         )
 
+        #TODO исправить! При отсутсвии весов будет падать
         model.set_embeddings(weights['mccs'], weights['amnts'])
 
         datamodule = TransactionRNNDataModule(
