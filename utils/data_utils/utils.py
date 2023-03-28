@@ -3,9 +3,13 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
+
 import torch
+from torch import nn
 
 from tqdm import tqdm
+
+from datamodules.datasets import DayWiseDataset
 
 
 def split_data(
@@ -75,6 +79,44 @@ def global_context(
     transactions_new.drop(transactions_new[transactions_new['average_amt'] == 0].index, axis=0, inplace=True)
 
     return transactions_new
+
+
+def global_context_emb_avg(
+    gc_dataset: DayWiseDataset,
+    emb_layer_amnt: nn.Embedding,
+    emb_layer_mcc: nn.Embedding,
+    tr_amnt_column: str = 'amount_rur',
+    tr_mcc_code_column: str = 'small_group',
+    device: str = 'cpu'
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    gc_emb_amnt = torch.zeros(
+        (len(gc_dataset), emb_layer_amnt.embedding_dim),
+        requires_grad=True,
+        device=device
+    )
+    gc_emb_mcc = torch.zeros(
+        (len(gc_dataset), emb_layer_mcc.embedding_dim),
+        requires_grad=True,
+        device=device
+    )
+    with torch.no_grad():
+        for i, frame in tqdm(enumerate(gc_dataset), 'Preparing gc from embedding layer'):
+            amnts = frame[tr_amnt_column].values
+            mccs = frame[tr_mcc_code_column].values
+
+            amnts = torch.LongTensor(amnts, device=device).unsqueeze(0)
+            mccs = torch.LongTensor(mccs, device=device).unsqueeze(0)
+
+            amnts_emb: torch.Tensor = emb_layer_amnt(amnts)
+            mccs_emb: torch.Tensor = emb_layer_mcc(mccs)
+
+            amnts_emb_avg = amnts_emb.squeeze().mean(0)
+            mccs_emb_avg = mccs_emb.squeeze().mean(0)
+
+            gc_emb_amnt[i] = amnts_emb_avg
+            gc_emb_mcc[i] = mccs_emb_avg
+    
+    return gc_emb_amnt, gc_emb_mcc
 
 
 def weekends(transactions: pd.DataFrame, datetime_column: str = 'TRDATETIME') -> pd.DataFrame:

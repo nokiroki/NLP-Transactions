@@ -56,6 +56,7 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.getfloat(conf_section, 'dropout'),
         config.getboolean(conf_section, 'permutation'),
         config.getboolean(conf_section, 'pe'),
+        config.getint('All_models', 'global_feature_type'),
         config.getboolean('All_models', 'use_global_features'),
         config.getboolean('All_models', 'is_weekends'),
         config.getint('All_models', 'global_features_step'),

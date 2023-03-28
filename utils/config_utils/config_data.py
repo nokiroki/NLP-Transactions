@@ -57,6 +57,7 @@ class ClassificationParamsConf:
     dropout             : float
     permutation         : bool
     pe                  : bool
+    global_feature_type : int
     use_global_features : bool
     is_weekends         : bool
     global_features_step: int

@@ -1,9 +1,8 @@
-from typing import Iterable, Optional, Dict, Tuple
+from typing import Iterable, Optional, Tuple
 from datetime import timedelta
 
 from tqdm.auto import tqdm
 
-import numpy as np
 import pandas as pd
 
 import torch
