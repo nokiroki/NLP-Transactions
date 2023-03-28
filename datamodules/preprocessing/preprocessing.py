@@ -10,7 +10,7 @@ def data_preprocessing(
         data_conf: DataConf,
         model_conf: ModelConf,
         params_conf: ClassificationParamsConf
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> Tuple[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     if data_conf.dataset == 'rosbank':
         return rb_preprocessing(data_conf, model_conf, params_conf)
     elif data_conf.dataset == 'tinkoff':

@@ -73,11 +73,11 @@ class TransactionDataModule(pl.LightningDataModule):
     
     @staticmethod
     def _tr2vec_collate(batch: torch.Tensor) -> Tuple[
-    torch.LongTensor,
-    torch.Tensor,
-    torch.LongTensor,
-    torch.Tensor,
-    torch.LongTensor
+        torch.LongTensor,
+        torch.Tensor,
+        torch.LongTensor,
+        torch.Tensor,
+        torch.LongTensor
     ]:
         ctx_mccs, ctx_amnts, center_mccs, center_amnts, ctx_lengths = zip(*batch)
         ctx_mccs = pad_sequence(ctx_mccs, batch_first=True, padding_value=0)
@@ -183,27 +183,40 @@ class TransactionRNNDataModule(pl.LightningDataModule):
 
     @staticmethod
     def _rnn_collate_with_gc(batch: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        Optional[torch.Tensor],
+        Optional[torch.Tensor],
+        Optional[torch.Tensor]
     ]:
-        mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc = zip(*batch)
+        mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc, gc_id = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
         amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
         avg_amnt = pad_sequence(avg_amnt, batch_first=True)
         top_mcc = pad_sequence(top_mcc, batch_first=True)
+        gc_id = pad_sequence(gc_id, batch_first=True, padding_value=-1)
         labels = torch.LongTensor(labels)
         return mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc
     
     @staticmethod
     def _rnn_collate(batch: torch.Tensor) -> Tuple[
-        torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor]
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        None,
+        None,
+        None
     ]:
-        mcc_seqs, amnt_seqs, labels, _, _ = zip(*batch)
+        mcc_seqs, amnt_seqs, labels, _, _, _ = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
         amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
         labels = torch.LongTensor(labels)
-        return mcc_seqs, amnt_seqs, labels, lengths, None, None
+        return mcc_seqs, amnt_seqs, labels, lengths, None, None, None
     
 
     def get_agg_func(self, sequences) -> Tuple[torch.Tensor, torch.Tensor]:        
@@ -211,13 +224,16 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         top_mcc_1 = sequences.top_mcc_1
         top_mcc_2 = sequences.top_mcc_2
         top_mcc_3 = sequences.top_mcc_3
+        gc_id = sequences.gc_id
 
-        avg_amt = [torch.LongTensor(self.discretizer.transform(np.array(seq).reshape(-1, 1))).view(-1) + 1 for seq in avg_amt]
+        avg_amt = [torch.LongTensor(
+            self.discretizer.transform(np.array(seq).reshape(-1, 1))
+        ).view(-1) + 1 for seq in avg_amt]
         top_mcc_seqs = [torch.stack((
                 torch.LongTensor(seq_1),
                 torch.LongTensor(seq_2),
                 torch.LongTensor(seq_3)
             ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
         ]
-
+        gc_id = [torch.LongTensor(seq) for seq in gc_id]
         return avg_amt, top_mcc_seqs

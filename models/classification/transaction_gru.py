@@ -6,29 +6,30 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from models.common_layers import PositionalEncoding
 from models.classification import BaseModel
-from utils.config_utils import LearningConf, ClassificationParamsConf
+from utils.data_utils import global_context_emb_avg
 
 
 class TransactionGRU(BaseModel):
 
     def __init__(
         self,
-        emb_type: str,
+        emb_type:       str,
         mcc_vocab_size: int,
-        mcc_emb_size: int,
-        amnt_bins: int,
-        amnt_emb_size: int,
-        emb_size: int,
-        hidden_size: int,
-        output_dim: int,
-        num_layers: int,
-        dropout: float,
-        lr: float,
-        is_gc: bool,
-        is_perm: bool,
-        is_pe: bool,
-        *args: Any,
-        **kwargs: Any
+        mcc_emb_size:   int,
+        amnt_bins:      int,
+        amnt_emb_size:  int,
+        emb_size:       int,
+        hidden_size:    int,
+        output_dim:     int,
+        num_layers:     int,
+        dropout:        float,
+        lr:             float,
+        gc_type:        int,
+        is_gc:          bool,
+        is_perm:        bool,
+        is_pe:          bool,
+        *args:          Any,
+        **kwargs:       Any
     ) -> None:
         super().__init__(output_dim, *args, **kwargs)
         assert emb_type in ('concat', 'tr2vec')
@@ -36,7 +37,10 @@ class TransactionGRU(BaseModel):
         if emb_type == 'concat':
             emb_size = mcc_emb_size + amnt_emb_size
             if is_gc:
-                emb_size += (amnt_emb_size + 3 * mcc_emb_size)
+                if gc_type == 0:
+                    emb_size += (amnt_emb_size + 3 * mcc_emb_size)
+                elif gc_type == 1:
+                    emb_size += amnt_emb_size + mcc_emb_size
 
         self.save_hyperparameters({
             'emb_type'          : emb_type,
@@ -51,6 +55,7 @@ class TransactionGRU(BaseModel):
             'dropout'           : dropout,
             'lr'                : lr,
             'is_gc'             : is_gc,
+            'gc_type'           : gc_type,
             'is_perm'           : is_perm,
             'is_pe'             : is_pe
         })
@@ -87,6 +92,8 @@ class TransactionGRU(BaseModel):
 
         self.predictor = nn.Linear(2 * self.hparams['hidden_size'], self.hparams['output_dim'])
 
+        self.gc_emb_amnt: Optional[torch.Tensor] = None
+        self.gc_emb_mcc: Optional[torch.Tensor] = None
 
     def set_embeddings(
         self,
@@ -99,6 +106,15 @@ class TransactionGRU(BaseModel):
             self.amnt_embeddings.weight.data = amnt_weights
             if emb_linear_weights:
                 self.emb_linear.weight.data = emb_linear_weights
+
+
+    def use_avg_emb_gc(self, dataset):
+        self.gc_emb_amnt, self.gc_emb_mcc = global_context_emb_avg(
+            dataset,
+            self.amnt_embeddings,
+            self.mcc_embeddings,
+            device=self.device
+        )
 
 
     def forward(

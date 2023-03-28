@@ -12,7 +12,7 @@ def rb_preprocessing(
     data_conf: DataConf,
     model_conf: ModelConf,
     params_conf: ClassificationParamsConf
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> Tuple[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]:
     transactions = pd.read_csv(os.path.join(data_conf.data_dir, 'rosbank', 'train.csv'))
     transactions['TRDATETIME'] = pd.to_datetime(transactions['TRDATETIME'], format=r'%d%b%y:%H:%M:%S')
     transactions = transactions.sort_values(by=['TRDATETIME'])
@@ -40,17 +40,13 @@ def rb_preprocessing(
     })
     if params_conf.use_global_features:
         transactions = global_context(transactions, params_conf.global_features_step)
-        if params_conf.global_feature_type == 0:
-            sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
-                'average_amt':  lambda x: x.tolist(),
-                'top_mcc_1':    lambda x: x.tolist(),
-                'top_mcc_2':    lambda x: x.tolist(),
-                'top_mcc_3':    lambda x: x.tolist()
-            })), axis=1)
-        elif params_conf.global_feature_type == 1:
-            sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
-                'gc_id': lambda x: x.tolist()
-            })), axis=1)
+        sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
+            'average_amt':  lambda x: x.tolist(),
+            'top_mcc_1':    lambda x: x.tolist(),
+            'top_mcc_2':    lambda x: x.tolist(),
+            'top_mcc_3':    lambda x: x.tolist(),
+            'gc_id':        lambda x: x.tolist()
+        })), axis=1)
 
     if params_conf.is_weekends:
         transactions = weekends(transactions)
@@ -74,4 +70,4 @@ def rb_preprocessing(
         mask = sequences['small_group'].apply(lambda x: len(x)) > 5
         sequences = sequences[mask]
 
-    return split_data(sequences, val_size=.2)
+    return transactions, split_data(sequences, val_size=.2)

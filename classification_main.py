@@ -21,7 +21,7 @@ if __name__ == '__main__':
     with open('api_token.txt') as f:
         api_token = f.read()
 
-    train_sequences, val_sequences, test_sequences = data_preprocessing(
+    original_df, (train_sequences, val_sequences, test_sequences) = data_preprocessing(
         data_conf,
         model_conf,
         params_conf
