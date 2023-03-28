@@ -9,8 +9,6 @@ from torch import nn
 
 from tqdm import tqdm
 
-from datamodules.datasets import DayWiseDataset
-
 
 def split_data(
     data: pd.DataFrame,
@@ -47,9 +45,11 @@ def global_context(
 ) -> pd.DataFrame:
     start_time = transactions.iloc[0][datetime_column]
     start_index = 0
+    gc_id = 0
 
     mean_tr = np.zeros(transactions.shape[0])
     top_mcc = np.zeros((transactions.shape[0], 3))
+    gc_ids = np.zeros(transactions.shape[0])
 
     for i in tqdm(range(transactions.shape[0])):
         curr_time = transactions.iloc[i][datetime_column]
@@ -67,14 +67,17 @@ def global_context(
 
             mean_tr[start_index:i] = mean_tr_smpl
             top_mcc[start_index:i] = top_mcc_smpl
+            gc_ids[start_index:i] = gc_id
 
             start_time = curr_time
             start_index = i
+            gc_id += 1
 
     transactions_new = transactions.copy()
 
     transactions_new['average_amt'] = mean_tr
     transactions_new[['top_mcc_1', 'top_mcc_2', 'top_mcc_3']] = top_mcc.astype(np.int32)
+    transactions_new['gc_id'] = gc_ids
 
     transactions_new.drop(transactions_new[transactions_new['average_amt'] == 0].index, axis=0, inplace=True)
 
@@ -82,25 +85,30 @@ def global_context(
 
 
 def global_context_emb_avg(
-    gc_dataset: DayWiseDataset,
+    gc_dataset: pd.DataFrame,
     emb_layer_amnt: nn.Embedding,
     emb_layer_mcc: nn.Embedding,
     tr_amnt_column: str = 'amount_rur',
     tr_mcc_code_column: str = 'small_group',
+    gc_id_column: int = 'gc_id',
     device: str = 'cpu'
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+    gc_ids = gc_dataset[gc_id_column].unique()
+
     gc_emb_amnt = torch.zeros(
-        (len(gc_dataset), emb_layer_amnt.embedding_dim),
+        (len(gc_ids), emb_layer_amnt.embedding_dim),
         requires_grad=True,
         device=device
     )
     gc_emb_mcc = torch.zeros(
-        (len(gc_dataset), emb_layer_mcc.embedding_dim),
+        (len(gc_ids), emb_layer_mcc.embedding_dim),
         requires_grad=True,
         device=device
     )
     with torch.no_grad():
-        for i, frame in tqdm(enumerate(gc_dataset), 'Preparing gc from embedding layer'):
+        for i in tqdm(gc_ids, 'Preparing gc from embedding layer'):
+            frame = gc_dataset[gc_dataset[gc_id_column] == i]
+
             amnts = frame[tr_amnt_column].values
             mccs = frame[tr_mcc_code_column].values
 

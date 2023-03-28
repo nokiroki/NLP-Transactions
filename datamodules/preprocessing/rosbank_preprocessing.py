@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
-from utils.data_utils import global_context, split_data, weekends
+from utils.data_utils import global_context, split_data, weekends, global_context_emb_avg
 from utils.config_utils import DataConf, ModelConf, ClassificationParamsConf
 
 
@@ -40,12 +40,17 @@ def rb_preprocessing(
     })
     if params_conf.use_global_features:
         transactions = global_context(transactions, params_conf.global_features_step)
-        sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
-            'average_amt':  lambda x: x.tolist(),
-            'top_mcc_1':    lambda x: x.tolist(),
-            'top_mcc_2':    lambda x: x.tolist(),
-            'top_mcc_3':    lambda x: x.tolist()
-        })), axis=1)
+        if params_conf.global_feature_type == 0:
+            sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
+                'average_amt':  lambda x: x.tolist(),
+                'top_mcc_1':    lambda x: x.tolist(),
+                'top_mcc_2':    lambda x: x.tolist(),
+                'top_mcc_3':    lambda x: x.tolist()
+            })), axis=1)
+        elif params_conf.global_feature_type == 1:
+            sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
+                'gc_id': lambda x: x.tolist()
+            })), axis=1)
 
     if params_conf.is_weekends:
         transactions = weekends(transactions)
