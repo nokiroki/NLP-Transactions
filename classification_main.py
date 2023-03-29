@@ -36,6 +36,7 @@ if __name__ == '__main__':
             'embedding_weights',
             model_conf.emb_weights_name
         ))
+        
     
     # Цикл обучения для оценки uncertainty
     for i in range(learning_conf.n_experiments):

@@ -4,6 +4,11 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+import torch
+from torch import nn
+
+from sklearn.preprocessing import KBinsDiscretizer
+
 from utils.data_utils import global_context, split_data, weekends, global_context_emb_avg
 from utils.config_utils import DataConf, ModelConf, ClassificationParamsConf
 
@@ -26,20 +31,27 @@ def rb_preprocessing(
         transactions.small_group.unique(), 
         np.arange(transactions.small_group.nunique()) + 1
     ))
+    discretizer = KBinsDiscretizer(params_conf.amnt_bins, encode='ordinal', subsample=int(2e5))
 
     transactions['small_group'] = transactions['small_group'].map(mcc2id)
+    transactions['amount_rur_kb'] = discretizer.fit_transform(
+        transactions['amount_rur'].values.reshape(-1, 1)
+    ).astype(np.int32) + 1
 
     sequences = transactions.groupby('client_id').agg({
-        'small_group': lambda x: x.tolist(),
-        'amount_rur':  lambda x: x.tolist(),
-        'hour':        lambda x: x.tolist(),
-        'day':         lambda x: x.tolist(),
-        'day_of_week': lambda x: x.tolist(),
-        'month':       lambda x: x.tolist(),
-        'target_flag': lambda x: x.tolist()[0],
+        'small_group':      lambda x: x.tolist(),
+        'amount_rur_kb':    lambda x: x.tolist(),
+        'hour':             lambda x: x.tolist(),
+        'day':              lambda x: x.tolist(),
+        'day_of_week':      lambda x: x.tolist(),
+        'month':            lambda x: x.tolist(),
+        'target_flag':      lambda x: x.tolist()[0],
     })
     if params_conf.use_global_features:
         transactions = global_context(transactions, params_conf.global_features_step)
+        transactions['average_amt'] = discretizer.transform(
+            transactions['average_amt'].values.reshape(-1, 1)
+        ).astype(np.int32) + 1
         sequences = pd.concat((sequences, transactions.groupby('client_id').agg({
             'average_amt':  lambda x: x.tolist(),
             'top_mcc_1':    lambda x: x.tolist(),
@@ -47,6 +59,37 @@ def rb_preprocessing(
             'top_mcc_3':    lambda x: x.tolist(),
             'gc_id':        lambda x: x.tolist()
         })), axis=1)
+    sequences.rename(columns={'amount_rur_kb': 'amount_rur'})
+
+    if params_conf.use_global_features and params_conf.global_feature_type == 1:
+        if params_conf.pretrained_embed:
+            weights = torch.load(os.path.join(
+                data_conf.emb_dir,
+                'embedding_weights',
+                model_conf.emb_weights_name
+            ))
+        mcc_embeddings = nn.Embedding(
+            params_conf.mcc_vocab_size + 1,
+            params_conf.mcc_embed_size,
+            padding_idx=0
+        ).to(model_conf.device)
+        amnt_embeddings = nn.Embedding(
+            params_conf.amnt_bins + 1,
+            params_conf.amnt_emb_size,
+            padding_idx=0
+        ).to(model_conf.device)
+
+        mcc_embeddings.weight.data = weights['mccs']
+        amnt_embeddings.weight.data = weights['amnts']
+
+        gc_emb_amnt, gc_emb_mcc = global_context_emb_avg(
+            transactions,
+            amnt_embeddings,
+            mcc_embeddings,
+            device=model_conf.device
+        )
+        print(gc_emb_amnt)
+
 
     if params_conf.is_weekends:
         transactions = weekends(transactions)

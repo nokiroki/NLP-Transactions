@@ -18,6 +18,7 @@ class ModelConf:
     model_type          : str
     experiment_name     : str
     emb_weights_name    : str
+    device              : str
 
 
 @dataclass

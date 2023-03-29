@@ -108,8 +108,6 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.m_last = params_conf.m_last
         self.m_period = params_conf.m_period
         self.period = params_conf.period
-
-        self.discretizer = fit_discretizer(params_conf.amnt_bins, train_sequences['amount_rur'])
         
         self.train_ds   = self.create_dataset(train_sequences)
         self.val_ds     = self.create_dataset(val_sequences)
@@ -148,7 +146,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
                 cur_user_subset        = pd.concat([cur_user_period_subset, cur_user_subset], axis=0)
                 
             mcc_seqs_processed.append(torch.LongTensor(cur_user_subset['mcc']))
-            amnt_seqs_processed.append(torch.LongTensor(self.discretizer.transform(np.array(cur_user_subset['amnt']).reshape(-1, 1))).view(-1) + 1)
+            amnt_seqs_processed.append(torch.LongTensor(cur_user_subset['amnt']))
 
         return mcc_seqs_processed, amnt_seqs_processed
 
@@ -226,9 +224,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         top_mcc_3 = sequences.top_mcc_3
         gc_id = sequences.gc_id
 
-        avg_amt = [torch.LongTensor(
-            self.discretizer.transform(np.array(seq).reshape(-1, 1))
-        ).view(-1) + 1 for seq in avg_amt]
+        avg_amt = [torch.LongTensor(seq) for seq in avg_amt]
         top_mcc_seqs = [torch.stack((
                 torch.LongTensor(seq_1),
                 torch.LongTensor(seq_2),

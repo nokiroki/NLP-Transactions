@@ -68,7 +68,8 @@ class TransactionGRU(BaseModel):
         self.amnt_embeddings    = nn.Embedding(
             self.hparams['amnt_bins'] + 1,
             self.hparams['amnt_emb_size'],
-            padding_idx=0)
+            padding_idx=0
+        )
 
         if self.hparams['emb_type'] == 'concat':
             self.emb_linear = nn.Identity()
@@ -123,16 +124,24 @@ class TransactionGRU(BaseModel):
         amnt_seqs: torch.Tensor,
         lengths: torch.Tensor,
         avg_amnt: Optional[torch.Tensor],
-        top_mcc: Optional[torch.Tensor]
+        top_mcc: Optional[torch.Tensor],
+        gc_ids: Optional[torch.Tensor]
     ) -> Any:
         mcc_embs = self.mcc_embeddings(mcc_seqs)
         amnt_embs = self.amnt_embeddings(amnt_seqs)
         embs = torch.cat([mcc_embs, amnt_embs], -1)
-        if avg_amnt is not None and top_mcc is not None:
-            avg_amnt_embs = self.amnt_embeddings(avg_amnt)
-            mcc_top_embs = self.mcc_embeddings(top_mcc)
-            mcc_top_embs = torch.reshape(mcc_top_embs, (mcc_top_embs.shape[0], mcc_top_embs.shape[1], -1))
-            embs = torch.cat([embs, avg_amnt_embs, mcc_top_embs], -1)
+        if self.hparams['is_gc']:
+            if self.hparams['gc_type'] == 0:
+                avg_amnt_embs = self.amnt_embeddings(avg_amnt)
+                mcc_top_embs = self.mcc_embeddings(top_mcc)
+                mcc_top_embs = torch.reshape(mcc_top_embs, (mcc_top_embs.shape[0], mcc_top_embs.shape[1], -1))
+                embs = torch.cat([embs, avg_amnt_embs, mcc_top_embs], -1)
+            elif self.hparams['gc_type'] == 1:
+                avg_amnt_embs = torch.zeros(amnt_embs, device=self.device, requires_grad=True)
+                avg_mcc_embs = torch.zeros(mcc_embs, device=self.device, requires_grad=True)
+                for x in gc_ids:
+                    ...
+
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
         

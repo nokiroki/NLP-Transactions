@@ -77,7 +77,7 @@ def global_context(
 
     transactions_new['average_amt'] = mean_tr
     transactions_new[['top_mcc_1', 'top_mcc_2', 'top_mcc_3']] = top_mcc.astype(np.int32)
-    transactions_new['gc_id'] = gc_ids
+    transactions_new['gc_id'] = gc_ids.astype(np.int32)
 
     transactions_new.drop(transactions_new[transactions_new['average_amt'] == 0].index, axis=0, inplace=True)
 

@@ -29,7 +29,8 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.get('All_models', 'task').lower(),
         config.get('All_models', 'model_type').lower(),
         config.get('All_models', 'experiment_name'),
-        config.get('All_models', 'emb_weigths_name')
+        config.get('All_models', 'emb_weigths_name'),
+        config.get('All_models', 'device')
     )
 
     conf_section = 'RNN' if model_conf.model_type == 'rnn' else 'Transformer'
@@ -56,7 +57,7 @@ def get_config_with_dirs(config_file: str) -> Tuple[
         config.getfloat(conf_section, 'dropout'),
         config.getboolean(conf_section, 'permutation'),
         config.getboolean(conf_section, 'pe'),
-        config.getint('All_models', 'global_feature_type'),
+        config.getint('All_models', 'gc_type'),
         config.getboolean('All_models', 'use_global_features'),
         config.getboolean('All_models', 'is_weekends'),
         config.getint('All_models', 'global_features_step'),
