@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 from torch import nn
 
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 
 def split_data(
@@ -95,16 +95,9 @@ def global_context_emb_avg(
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     gc_ids = gc_dataset[gc_id_column].unique()
 
-    gc_emb_amnt = torch.zeros(
-        (len(gc_ids), emb_layer_amnt.embedding_dim),
-        requires_grad=True,
-        device=device
-    )
-    gc_emb_mcc = torch.zeros(
-        (len(gc_ids), emb_layer_mcc.embedding_dim),
-        requires_grad=True,
-        device=device
-    )
+    gc_emb_amnt = np.zeros((len(gc_ids), emb_layer_amnt.embedding_dim))
+    gc_emb_mcc = np.zeros((len(gc_ids), emb_layer_mcc.embedding_dim))
+
     with torch.no_grad():
         for i in tqdm(gc_ids, 'Preparing gc from embedding layer'):
             frame = gc_dataset[gc_dataset[gc_id_column] == i]
@@ -112,8 +105,8 @@ def global_context_emb_avg(
             amnts = frame[tr_amnt_column].values
             mccs = frame[tr_mcc_code_column].values
 
-            amnts = torch.LongTensor(amnts, device=device).unsqueeze(0)
-            mccs = torch.LongTensor(mccs, device=device).unsqueeze(0)
+            amnts = torch.LongTensor(amnts).unsqueeze(0).to(device)
+            mccs = torch.LongTensor(mccs).unsqueeze(0).to(device)
 
             amnts_emb: torch.Tensor = emb_layer_amnt(amnts)
             mccs_emb: torch.Tensor = emb_layer_mcc(mccs)
@@ -121,8 +114,8 @@ def global_context_emb_avg(
             amnts_emb_avg = amnts_emb.squeeze().mean(0)
             mccs_emb_avg = mccs_emb.squeeze().mean(0)
 
-            gc_emb_amnt[i] = amnts_emb_avg
-            gc_emb_mcc[i] = mccs_emb_avg
+            gc_emb_amnt[i] = amnts_emb_avg.cpu().numpy()
+            gc_emb_mcc[i] = mccs_emb_avg.cpu().numpy()
     
     return gc_emb_amnt, gc_emb_mcc
 
@@ -187,4 +180,3 @@ def masking_all_batches(
         new_batches.append(new_batch)
 
     return new_batches, rand_masks_per_batch
-

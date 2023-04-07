@@ -44,8 +44,8 @@ class BaseModel(pl.LightningModule, ABC):
     
 
     def training_step(self, batch: torch.Tensor, batch_idx: int) -> STEP_OUTPUT:
-        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc, gc_ids = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc, gc_ids)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         loss = F.binary_cross_entropy_with_logits(logits, labels.float()) if self.output_dim == 1 else \
                 F.cross_entropy(logits, labels)
         self.log('train_loss', loss)
@@ -67,8 +67,8 @@ class BaseModel(pl.LightningModule, ABC):
     
 
     def validation_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
-        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc, gc_ids = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc, gc_ids)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         probs = torch.sigmoid(logits) if self.output_dim == 1 else torch.argmax(logits, dim=1)
         return probs, labels
 
@@ -84,8 +84,8 @@ class BaseModel(pl.LightningModule, ABC):
 
 
     def test_step(self, batch: torch.Tensor, batch_idx: int) -> Optional[STEP_OUTPUT]:
-        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc, gc_ids = batch
-        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc, gc_ids)
+        mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc = batch
+        logits = self(mcc_seqs, amnt_seqs, lengths, avg_amnt, top_mcc)
         probs = torch.sigmoid(logits) if self.output_dim == 1 else torch.argmax(logits, dim=1)
         return probs, labels
     

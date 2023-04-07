@@ -12,7 +12,7 @@ from torch.nn.utils.rnn import pad_sequence
 import pytorch_lightning as pl
 
 from utils.config_utils import ClassificationParamsConf, LearningConf
-from .datasets import T2VDataset, TransactionLabelDataset
+from .datasets import T2VDataset, TransactionLabelDataset, TransactionLabelGCDataset
 
 
 def fit_discretizer(n_bins: int, train_sequences: pd.DataFrame) -> KBinsDiscretizer:
@@ -105,6 +105,7 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         self.val_sequences = val_sequences
         self.test_sequences = test_sequences
         self.is_global_features = params_conf.use_global_features
+        self.gc_type = params_conf.global_feature_type
         self.m_last = params_conf.m_last
         self.m_period = params_conf.m_period
         self.period = params_conf.period
@@ -123,8 +124,12 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         mcc_seqs_processed, amnt_seqs_processed = self.process_sequences(mcc_seqs, amnt_seqs, period_seqs)
 
         if self.is_global_features:
-            avg_amnt, top_mcc = self.get_agg_func(sequences)
-            return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels, avg_amnt, top_mcc)
+            if self.gc_type == 0:
+                avg_amnt, top_mcc = self.get_agg_func_1(sequences)
+                return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels, avg_amnt, top_mcc)
+            elif self.gc_type == 1:
+                avg_amnt, avg_mcc = self.get_agg_func_2(sequences)
+                return TransactionLabelGCDataset(mcc_seqs_processed, amnt_seqs_processed, labels, avg_amnt, avg_mcc)
         else:
             return TransactionLabelDataset(mcc_seqs_processed, amnt_seqs_processed, labels)
 
@@ -186,16 +191,14 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         torch.Tensor,
         torch.Tensor,
         Optional[torch.Tensor],
-        Optional[torch.Tensor],
         Optional[torch.Tensor]
     ]:
-        mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc, gc_id = zip(*batch)
+        mcc_seqs, amnt_seqs, labels, avg_amnt, top_mcc = zip(*batch)
         lengths = torch.LongTensor([len(seq) for seq in mcc_seqs])
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
         amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
         avg_amnt = pad_sequence(avg_amnt, batch_first=True)
         top_mcc = pad_sequence(top_mcc, batch_first=True)
-        gc_id = pad_sequence(gc_id, batch_first=True, padding_value=-1)
         labels = torch.LongTensor(labels)
         return mcc_seqs, amnt_seqs, labels, lengths, avg_amnt, top_mcc
     
@@ -206,7 +209,6 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         torch.Tensor,
         torch.Tensor,
         None,
-        None,
         None
     ]:
         mcc_seqs, amnt_seqs, labels, _, _, _ = zip(*batch)
@@ -214,15 +216,14 @@ class TransactionRNNDataModule(pl.LightningDataModule):
         mcc_seqs = pad_sequence(mcc_seqs, batch_first=True)
         amnt_seqs = pad_sequence(amnt_seqs, batch_first=True)
         labels = torch.LongTensor(labels)
-        return mcc_seqs, amnt_seqs, labels, lengths, None, None, None
+        return mcc_seqs, amnt_seqs, labels, lengths, None, None
     
 
-    def get_agg_func(self, sequences) -> Tuple[torch.Tensor, torch.Tensor]:        
+    def get_agg_func_1(self, sequences) -> Tuple[torch.Tensor, torch.Tensor]:        
         avg_amt = sequences.average_amt
         top_mcc_1 = sequences.top_mcc_1
         top_mcc_2 = sequences.top_mcc_2
         top_mcc_3 = sequences.top_mcc_3
-        gc_id = sequences.gc_id
 
         avg_amt = [torch.LongTensor(seq) for seq in avg_amt]
         top_mcc_seqs = [torch.stack((
@@ -231,5 +232,16 @@ class TransactionRNNDataModule(pl.LightningDataModule):
                 torch.LongTensor(seq_3)
             ), -1) for seq_1, seq_2, seq_3 in zip(top_mcc_1, top_mcc_2, top_mcc_3)
         ]
-        gc_id = [torch.LongTensor(seq) for seq in gc_id]
+
+
         return avg_amt, top_mcc_seqs
+
+    def get_agg_func_2(self, sequences) -> Tuple[torch.Tensor, torch.Tensor]:        
+        avg_amt = sequences.amnt_avg_embed
+        avg_mcc = sequences.mcc_avg_embed
+
+        avg_amt = [torch.Tensor(np.array(seq)) for seq in avg_amt]
+        avg_mcc = [torch.Tensor(np.array(seq)) for seq in avg_mcc]
+
+
+        return avg_amt, avg_mcc

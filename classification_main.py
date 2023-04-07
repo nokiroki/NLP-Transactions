@@ -53,6 +53,7 @@ if __name__ == '__main__':
             params_conf.dropout,
             learning_conf.lr,
             params_conf.use_global_features,
+            params_conf.global_feature_type,
             params_conf.permutation,
             params_conf.pe
         ) if model_conf.model_type == 'rnn' else Transformer(
@@ -69,6 +70,7 @@ if __name__ == '__main__':
             learning_conf.lr,
             params_conf.num_heads,
             params_conf.use_global_features,
+            params_conf.global_feature_type,
             params_conf.permutation,
             params_conf.pe  
         )
@@ -104,7 +106,7 @@ if __name__ == '__main__':
 
         comet_logger = CometLogger(
             api_key=api_token,
-            project_name='NLP-transactions-next-token',
+            project_name='NLP-transactions',
             experiment_name=f'{model_conf.experiment_name}_{i}'
         )
 

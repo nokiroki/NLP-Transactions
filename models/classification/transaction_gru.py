@@ -109,23 +109,13 @@ class TransactionGRU(BaseModel):
                 self.emb_linear.weight.data = emb_linear_weights
 
 
-    def use_avg_emb_gc(self, dataset):
-        self.gc_emb_amnt, self.gc_emb_mcc = global_context_emb_avg(
-            dataset,
-            self.amnt_embeddings,
-            self.mcc_embeddings,
-            device=self.device
-        )
-
-
     def forward(
         self,
         mcc_seqs: torch.Tensor,
         amnt_seqs: torch.Tensor,
         lengths: torch.Tensor,
         avg_amnt: Optional[torch.Tensor],
-        top_mcc: Optional[torch.Tensor],
-        gc_ids: Optional[torch.Tensor]
+        top_mcc: Optional[torch.Tensor]
     ) -> Any:
         mcc_embs = self.mcc_embeddings(mcc_seqs)
         amnt_embs = self.amnt_embeddings(amnt_seqs)
@@ -137,10 +127,7 @@ class TransactionGRU(BaseModel):
                 mcc_top_embs = torch.reshape(mcc_top_embs, (mcc_top_embs.shape[0], mcc_top_embs.shape[1], -1))
                 embs = torch.cat([embs, avg_amnt_embs, mcc_top_embs], -1)
             elif self.hparams['gc_type'] == 1:
-                avg_amnt_embs = torch.zeros(amnt_embs, device=self.device, requires_grad=True)
-                avg_mcc_embs = torch.zeros(mcc_embs, device=self.device, requires_grad=True)
-                for x in gc_ids:
-                    ...
+                embs = torch.cat([embs, avg_amnt, top_mcc], -1)
 
         embs = self.emb_linear(embs)
         embs = self.pos_enc(embs)
@@ -150,9 +137,9 @@ class TransactionGRU(BaseModel):
             embs = embs[:, perm, :]
 
         packed_embs = pack_padded_sequence(
-            embs, 
-            lengths.cpu(), 
-            batch_first=True, 
+            embs,
+            lengths.cpu(),
+            batch_first=True,
             enforce_sorted=False
         )
         hidden, _ = self.rnn(packed_embs)

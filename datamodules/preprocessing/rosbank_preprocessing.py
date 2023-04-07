@@ -7,6 +7,8 @@ import pandas as pd
 import torch
 from torch import nn
 
+from tqdm.auto import tqdm
+
 from sklearn.preprocessing import KBinsDiscretizer
 
 from utils.data_utils import global_context, split_data, weekends, global_context_emb_avg
@@ -59,28 +61,32 @@ def rb_preprocessing(
             'top_mcc_3':    lambda x: x.tolist(),
             'gc_id':        lambda x: x.tolist()
         })), axis=1)
-    sequences.rename(columns={'amount_rur_kb': 'amount_rur'})
+    sequences = sequences.rename(columns={'amount_rur_kb': 'amount_rur'})
+    transactions = transactions.drop(columns=['amount_rur'], axis=1)
+    transactions = transactions.rename(columns={'amount_rur_kb': 'amount_rur'})
 
     if params_conf.use_global_features and params_conf.global_feature_type == 1:
-        if params_conf.pretrained_embed:
-            weights = torch.load(os.path.join(
-                data_conf.emb_dir,
-                'embedding_weights',
-                model_conf.emb_weights_name
+        weights = torch.load(os.path.join(
+            data_conf.emb_dir,
+            'embedding_weights',
+            model_conf.emb_weights_name
             ))
         mcc_embeddings = nn.Embedding(
             params_conf.mcc_vocab_size + 1,
             params_conf.mcc_embed_size,
             padding_idx=0
-        ).to(model_conf.device)
+        )
         amnt_embeddings = nn.Embedding(
             params_conf.amnt_bins + 1,
             params_conf.amnt_emb_size,
             padding_idx=0
-        ).to(model_conf.device)
+        )
 
         mcc_embeddings.weight.data = weights['mccs']
         amnt_embeddings.weight.data = weights['amnts']
+
+        mcc_embeddings = mcc_embeddings.to(model_conf.device)
+        amnt_embeddings = amnt_embeddings.to(model_conf.device)
 
         gc_emb_amnt, gc_emb_mcc = global_context_emb_avg(
             transactions,
@@ -88,7 +94,20 @@ def rb_preprocessing(
             mcc_embeddings,
             device=model_conf.device
         )
-        print(gc_emb_amnt)
+
+        avg_amnt_seqs = []
+        avg_mcc_seqs = []
+        for seq in tqdm(sequences.iloc, total=sequences.shape[0]):
+            amnt_seq = []
+            mcc_seq = []
+            
+            for i in seq['gc_id']:
+                amnt_seq.append(gc_emb_amnt[i])
+                mcc_seq.append(gc_emb_mcc[i])
+            avg_amnt_seqs.append(amnt_seq)
+            avg_mcc_seqs.append(mcc_seq)
+        sequences['amnt_avg_embed'] = avg_amnt_seqs
+        sequences['mcc_avg_embed'] = avg_mcc_seqs
 
 
     if params_conf.is_weekends:
